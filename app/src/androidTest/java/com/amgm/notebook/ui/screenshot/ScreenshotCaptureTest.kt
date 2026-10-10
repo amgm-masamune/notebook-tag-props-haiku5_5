@@ -8,7 +8,6 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodes
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
@@ -58,9 +57,10 @@ class ScreenshotCaptureTest {
         get() = (InstrumentationRegistry.getInstrumentation()
             .targetContext.applicationContext as NotebookApplication).container
 
-    private lateinit var projectTagId: TagId
-    private lateinit var devTagId: TagId
-    private lateinit var readingTagId: TagId
+    // 値クラスは lateinit 不可のため、ダミー初期値を持たせる（@Before の seedSampleData で必ず上書きされる）
+    private var projectTagId: TagId = TagId("")
+    private var devTagId: TagId = TagId("")
+    private var readingTagId: TagId = TagId("")
     private val noteIdByTitle = mutableMapOf<String, NoteId>()
 
     @Before

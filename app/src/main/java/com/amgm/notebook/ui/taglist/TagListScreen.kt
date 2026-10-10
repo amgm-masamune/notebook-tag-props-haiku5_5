@@ -23,8 +23,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -52,6 +50,7 @@ import com.amgm.notebook.ui.components.EmptyState
 import com.amgm.notebook.ui.components.LargeTitleHeader
 import com.amgm.notebook.ui.components.NotebookCard
 import com.amgm.notebook.ui.components.rememberTagColor
+import com.amgm.notebook.ui.lighting.GlowFab
 import com.amgm.notebook.ui.theme.NotebookDimens
 import com.amgm.notebook.ui.theme.extraColors
 
@@ -65,17 +64,10 @@ fun TagListScreen(viewModel: TagListViewModel, snackbarHostState: SnackbarHostSt
     Scaffold(
         containerColor = Color.Transparent,
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = viewModel::onCreateTagClick,
+            GlowFab(
+                text = "新規タグ",
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("新規タグ") },
-                shape = CircleShape,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                elevation = FloatingActionButtonDefaults.elevation(
-                    defaultElevation = 2.dp,
-                    pressedElevation = 1.dp
-                ),
+                onClick = viewModel::onCreateTagClick,
                 modifier = Modifier.testTag(TestTags.TAG_LIST_FAB)
             )
         },

@@ -1,6 +1,6 @@
 # 光と影（シェーダー基盤）
 
-ステータス: 基盤とコンポーネントを実装。ルートへの組み込み済み。各画面の細部への適用は後続
+ステータス: 基盤とコンポーネントを実装。ルートへの組み込み済み。全画面への適用は §9（実機の見た目の確認は CI のスクリーンショットで行う）
 
 関連: [architecture.md](architecture.md)（テーマ・コンポーネント） / [testing.md](testing.md)
 
@@ -83,11 +83,9 @@
 - 光源座標は画面サイズ（`LocalConfiguration` × 密度）を基準にし、要素は root 座標で測る。ステータスバー等の分だけ方向がずれうるが、影の向きに目立つ差は出ない想定。
 - モーション低減のときは `shaderTimeSec()` が 0 を返し、木漏れ日・脈動・きらめきが止まる。
 
-### 画面への適用の留意点（後続の担当へ）
+### 画面への適用
 
-- 6 つの画面の `Scaffold` の `containerColor` は `Color.Transparent` にした。`TopAppBar` など画面内の不透明な面は未変更で、背景の光を隠すので、必要なら次の担当が透明にする。
-- 既存画面の `ExtendedFloatingActionButton` は未置換（`GlowFab` に差し替えるのは次の担当）。
-- ボトムバーは浮遊型になり、上辺の区切り線を外した。
+適用の一覧と elevation の規則は §9。6 つの画面の `Scaffold` の `containerColor` は `Color.Transparent` にしてある。
 
 ## 7. 関係図
 
@@ -130,3 +128,43 @@ flowchart LR
 | 実機（API 33 以上） | `app/src/androidTest/.../ui/lighting/ShaderCompileTest.kt` | 全シェーダーを `RuntimeShader` でコンパイルし、全 uniform に `floatCount` 個の値を設定できること。失敗メッセージにシェーダー名と uniform 名を含む |
 
 この環境ではコンパイルできないため、AGSL の文法は CI の実機テストで確かめる。JVM 側の静的検査は、CI より前に uniform の食い違いを検出するためにある。
+
+## 9. 画面への適用
+
+全画面に、部品（§6）を次のとおり適用している。影の強さは `NotebookDimens`（`ui/theme/Dimens.kt`）の定数を使う。
+
+| 画面 | 対象 | 使った部品 | elevation |
+|---|---|---|---|
+| 全画面 | 背景 | `AmbientLightBackground`（`NotebookApp`） | - |
+| ノート一覧 | 「新規ノート」FAB | `GlowFab`（testTag `NOTE_LIST_FAB`） | FAB の既定 |
+| ノート一覧 | ノートの行 | `NotebookCard`（既定） | 3dp |
+| ノート編集 | 上部バー（戻る・保存） | `glassPanel` | - |
+| ノート編集 | 見出し同期の行 | `softShadow` + `litSurface` | 3dp |
+| ノート編集 | 「プロパティ」「本文」カード | `NotebookCard` | 6dp |
+| ノート編集 | ノート紐付けピッカー | シートは透明、中身に `glassPanel` | - |
+| タグ一覧 | タグの行（1 件ごと。ネストのガイド線は残す） | `NotebookCard` | 3dp |
+| タグ一覧 | 「新規タグ」FAB | `GlowFab`（testTag `TAG_LIST_FAB`） | FAB の既定 |
+| タグ編集 | 上部バー（戻る・保存） | `glassPanel` | - |
+| タグ編集 | 「名前」「親タグ」「継承」「プロパティ定義」カード | `NotebookCard` | 6dp |
+| 表タブ | タグごとのカード | `NotebookCard` | 3dp |
+| タグ別表 | 上部バー（戻る・編集） | `glassPanel` | - |
+| タグ別表 | 表全体（1 枚のカード） | `softShadow` + `litSurface` | 6dp |
+| タグ別表 | 「ノートを追加」FAB | `GlowFab`（testTag `TAG_TABLE_ADD_NOTE`） | FAB の既定 |
+| 全画面 | ボトムバー | `softShadow` + `glassPanel`（testTag `BOTTOM_NAV` は外側のコンテナ） | 12dp |
+| 全画面 | 入力欄の塗り（`notebookFieldColors`） | 面色の半透明（ライト 0.7、ダーク 0.5） | - |
+| 全画面 | 選択中のタグチップ | `softShadow`（選択中だけ） | 2dp |
+| 全画面 | 大見出し（`LargeTitleHeader`） | 文字の `Brush`（ライト: 主色をわずかに明るく、ダーク: 白から `rimColor`） | - |
+
+### elevation の規則
+
+- 主要カード（画面の主題になる大きなカード）は `NotebookDimens.MainElevation`（6dp）。
+- 行・小カード（一覧の行、タグのカード）は `NotebookDimens.RowElevation`（3dp）。`NotebookCard` の既定値。
+- 浮遊する板（ボトムバー）は 12dp。FAB は `GlowFab`（Material の 2dp と後光）。
+- 選択チップは 2dp。影は弱く、選択中だけ付ける。
+
+### 面の作り方の約束
+
+- 光る面は**不透明な地を持たせない**。表のように内容が重なる場所だけ、地を不透明にする（横スクロールで流れてくる固定列など）。
+- 状態を伝える注記（型の衝突、必須の警告、エラー）は、状態の色（`tertiaryContainer` / `errorContainer`）を保つため光の面にしていない。
+- ライトのヘッダー行は、カードの白より明るくできない（白が最も明るい）ため、`surfaceVariant` の帯で区別する。
+- 補助文字の色は変えていない。ライトの `TextSubLight` は紙色の上で約 4.65:1、白で約 5.08:1、ダークの `TextSubDark` は約 6.5〜7.3:1で、通常の本文として AA（4.5:1）を満たす。

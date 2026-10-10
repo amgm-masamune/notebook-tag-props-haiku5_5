@@ -6,20 +6,25 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import com.amgm.notebook.ui.lighting.LocalLightState
 import com.amgm.notebook.ui.theme.NotebookDimens
 
 /** 入力欄の角丸（14dp）。 */
 val NotebookInputShape = RoundedCornerShape(NotebookDimens.InputRadius)
 
-/** 紙色の地に細い罫線の入力欄。未入力のプレースホルダは薄い字。 */
+/**
+ * 細い罫線の入力欄。塗りは面色の半透明にして、背景の光がうっすら透けるようにする
+ * （ライト alpha 0.7、ダーク 0.5）。未入力のプレースホルダは薄い字。
+ */
 @Composable
 fun notebookFieldColors(): TextFieldColors {
     val scheme = MaterialTheme.colorScheme
+    val fill = scheme.surface.copy(alpha = if (LocalLightState.current.isDark) 0.5f else 0.7f)
     return OutlinedTextFieldDefaults.colors(
-        focusedContainerColor = scheme.background,
-        unfocusedContainerColor = scheme.background,
-        disabledContainerColor = scheme.background,
-        errorContainerColor = scheme.background,
+        focusedContainerColor = fill,
+        unfocusedContainerColor = fill,
+        disabledContainerColor = fill,
+        errorContainerColor = fill,
         focusedBorderColor = scheme.primary,
         unfocusedBorderColor = scheme.outlineVariant,
         errorBorderColor = scheme.error,

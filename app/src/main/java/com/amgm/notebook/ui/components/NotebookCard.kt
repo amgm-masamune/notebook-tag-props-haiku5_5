@@ -25,12 +25,12 @@ import com.amgm.notebook.ui.lighting.litSurface
 import com.amgm.notebook.ui.lighting.softShadow
 import com.amgm.notebook.ui.theme.NotebookDimens
 
-/** カードの影の強さ（elevation）。光源と反対向きに、ごく淡く落ちる。 */
-private val CardElevation: Dp = 2.dp
-
 /**
  * 角丸 20dp のサーフェスカード。面は光源に照らされた素材として描き（[litSurface]）、
  * 影は [softShadow] で落とす。[onClick] を渡すと押下中にわずかに縮むクリック可能カードになる。
+ *
+ * [elevation] は影の強さ。主要カードは [NotebookDimens.MainElevation]、既定は行・小カード向けの
+ * [NotebookDimens.RowElevation]（docs/lighting.md §9）。
  *
  * API 33 未満では縁を 1dp の罫線で描く（API 33 以上は光源側の縁のリムライトが縁の代わりになる）。
  */
@@ -38,6 +38,7 @@ private val CardElevation: Dp = 2.dp
 fun NotebookCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    elevation: Dp = NotebookDimens.RowElevation,
     contentPadding: PaddingValues = PaddingValues(NotebookDimens.CardPadding),
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -52,7 +53,7 @@ fun NotebookCard(
     if (onClick == null) {
         Surface(
             modifier = modifier
-                .softShadow(cornerRadius = radius, elevation = CardElevation)
+                .softShadow(cornerRadius = radius, elevation = elevation)
                 .litSurface(cornerRadius = radius, baseColor = surface),
             shape = shape,
             color = Color.Transparent,
@@ -78,7 +79,7 @@ fun NotebookCard(
                     scaleX = scale
                     scaleY = scale
                 }
-                .softShadow(cornerRadius = radius, elevation = CardElevation)
+                .softShadow(cornerRadius = radius, elevation = elevation)
                 .litSurface(
                     cornerRadius = radius,
                     baseColor = surface,

@@ -58,6 +58,7 @@ fun NotebookBottomBar(currentRoute: String?, navController: NavHostController) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = BarMargin, end = BarMargin, bottom = BarMargin)
+            .testTag(TestTags.BOTTOM_NAV)
     ) {
         Box(
             modifier = Modifier
@@ -68,8 +69,7 @@ fun NotebookBottomBar(currentRoute: String?, navController: NavHostController) {
             NavigationBar(
                 containerColor = Color.Transparent,
                 contentColor = scheme.onSurfaceVariant,
-                tonalElevation = 0.dp,
-                modifier = Modifier.testTag(TestTags.BOTTOM_NAV)
+                tonalElevation = 0.dp
             ) {
                 TopLevelTab.entries.forEach { tab ->
                     NavigationBarItem(
