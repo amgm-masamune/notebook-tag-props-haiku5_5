@@ -17,8 +17,8 @@ import kotlin.math.hypot
 /**
  * 画面全体の背景。背面に光と影のある紙を描き、その上に [content] を載せる。
  *
- * - API 33 以上: [NotebookShaders.AMBIENT]（紙色・光源からの減衰・木漏れ日・ビネット・粒状感）。
- * - API 26〜32: 紙色の上に、光源位置を中心とする放射状のグラデーションと、下端の薄い影。
+ * - API 33 以上: [NotebookShaders.AMBIENT]（紙色・光源からの減衰・窓の光・木漏れ日・ビネット・粒状感）。
+ * - API 26〜32: 紙色の上に、光源位置を中心とする放射状の明るみと、下端の弱い影。
  *
  * 光源の位置と時間は描画フェーズでだけ読むので、画面の再コンポーズは起きない。
  */
@@ -76,12 +76,16 @@ private fun AmbientFallbackBox(
     )
 }
 
-/** API 26〜32 の背景。紙色、光源を中心とする暖色のにじみ、下端の薄い影。 */
+/**
+ * API 26〜32 の背景。紙色、光源を中心とする明るみ（ライトは暖白、ダークは卓上灯の溜まり）、下端の弱い影。
+ * シェーダー版と同じ方向に揃える。
+ */
 private fun DrawScope.drawFallbackAmbient(light: LightState) {
     drawRect(light.baseColor)
     val center = light.lightPositionPx(size)
-    val radius = hypot(size.width, size.height) * 0.9f
-    val keyAlpha = if (light.isDark) 0.22f else 0.35f
+    // ダークは上部の溜まりを画面高さで絞り、ライトは対角線の広さで減衰させる（シェーダーの poolRadius と同じ）
+    val radius = if (light.isDark) size.height * 0.55f else hypot(size.width, size.height) * 0.85f
+    val keyAlpha = if (light.isDark) 0.20f else 0.60f
     drawRect(
         Brush.radialGradient(
             colors = listOf(light.keyColor.copy(alpha = keyAlpha), Color.Transparent),
@@ -89,7 +93,7 @@ private fun DrawScope.drawFallbackAmbient(light: LightState) {
             radius = radius
         )
     )
-    val shadowAlpha = if (light.isDark) 0.25f else 0.05f
+    val shadowAlpha = if (light.isDark) 0.12f else 0.03f
     drawRect(
         Brush.verticalGradient(
             colors = listOf(Color.Transparent, light.shadowColor.copy(alpha = shadowAlpha)),
@@ -99,7 +103,8 @@ private fun DrawScope.drawFallbackAmbient(light: LightState) {
     )
 }
 
-/** 光の強さ。ダークは光源の溜まりを絞る（シェーダー側の reach）ので、強さは 1 のまま。 */
+/** 光の強さ。ダークは光源の溜まりを絞る（シェーダー側の poolRadius）ので、強さは 1 のまま。 */
 private const val AMBIENT_INTENSITY = 1f
 
-private fun ambientGrain(isDark: Boolean): Float = if (isDark) 0.012f else 0.018f
+/** 粒状感の振幅（輝度の ±）。シェーダーの uGrain は振幅の半分なので、ライト 0.02、ダーク 0.024。 */
+private fun ambientGrain(isDark: Boolean): Float = if (isDark) 0.024f else 0.02f

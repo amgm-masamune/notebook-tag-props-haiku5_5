@@ -16,15 +16,16 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.amgm.notebook.ui.theme.InkBlueLight
 import com.amgm.notebook.ui.theme.LightHighlightDark
 import com.amgm.notebook.ui.theme.LightKeyDark
 import com.amgm.notebook.ui.theme.LightKeyLight
 import com.amgm.notebook.ui.theme.LightRimDark
 import com.amgm.notebook.ui.theme.PaperDark
 import com.amgm.notebook.ui.theme.PaperLight
+import com.amgm.notebook.ui.theme.ShadowInkLight
 import com.amgm.notebook.ui.theme.TealDark
 import com.amgm.notebook.ui.theme.TealLight
-import com.amgm.notebook.ui.theme.TextLight
 
 /**
  * 画面全体で 1 つの光源を表す状態。ライト「窓辺の朝の光」、ダーク「夜の卓上灯」。
@@ -46,7 +47,11 @@ class LightState(
     val highlightColor: Color,
     val rimColor: Color,
     val glowColor: Color
-)
+) {
+    /** 押下のグロー色。ライトは主色、ダークはテアル。 */
+    val pressColor: Color
+        get() = if (isDark) TealDark else InkBlueLight
+}
 
 /** 光源の画面上の位置（ピクセル）。描画フェーズで呼ぶこと（[LightState.time] を読む）。 */
 fun LightState.lightPositionPx(screenSize: Size): Offset {
@@ -120,7 +125,7 @@ private fun lightStateFor(isDark: Boolean, time: State<Float>, motionEnabled: Bo
             keyColor = LightKeyDark,
             baseColor = PaperDark,
             shadowColor = Color.Black,
-            highlightColor = LightHighlightDark,
+            highlightColor = LightHighlightDark.copy(alpha = 0.06f),
             rimColor = LightRimDark,
             glowColor = TealDark
         )
@@ -132,8 +137,8 @@ private fun lightStateFor(isDark: Boolean, time: State<Float>, motionEnabled: Bo
             motionEnabled = motionEnabled,
             keyColor = LightKeyLight,
             baseColor = PaperLight,
-            shadowColor = TextLight,
-            highlightColor = Color.White,
+            shadowColor = ShadowInkLight,
+            highlightColor = Color.White.copy(alpha = 0.10f),
             rimColor = Color.White,
             glowColor = TealLight
         )

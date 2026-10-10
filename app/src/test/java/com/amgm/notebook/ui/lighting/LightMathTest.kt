@@ -73,10 +73,10 @@ class LightMathTest {
     }
 
     @Test
-    fun `影の長さは elevation の半分`() {
+    fun `影の長さは elevation の 0_9 倍`() {
         val offset = shadowOffset(Offset(0f, 0f), Offset(300f, 400f), 8f, 100f)
         val length = sqrt(offset.x * offset.x + offset.y * offset.y)
-        assertEquals(4f, length, delta)
+        assertEquals(7.2f, length, delta)
     }
 
     @Test
@@ -95,16 +95,16 @@ class LightMathTest {
     // ---- shadowAlpha ----
 
     @Test
-    fun `ライトの影の不透明度は 0_22 で頭打ち`() {
+    fun `ライトの影の不透明度は 0_13 で頭打ち`() {
         assertEquals(0.06f, shadowAlpha(0f, isDark = false), delta)
-        assertEquals(0.06f + 4f * 0.012f, shadowAlpha(4f, isDark = false), delta)
-        assertEquals(0.22f, shadowAlpha(100f, isDark = false), delta)
+        assertEquals(0.06f + 4f * 0.0117f, shadowAlpha(4f, isDark = false), delta)
+        assertEquals(0.13f, shadowAlpha(100f, isDark = false), delta)
     }
 
     @Test
     fun `ダークの影の不透明度は 0_45 で頭打ち`() {
-        assertEquals(0.20f, shadowAlpha(0f, isDark = true), delta)
-        assertEquals(0.20f + 4f * 0.02f, shadowAlpha(4f, isDark = true), delta)
+        assertEquals(0.30f, shadowAlpha(0f, isDark = true), delta)
+        assertEquals(0.30f + 4f * 0.025f, shadowAlpha(4f, isDark = true), delta)
         assertEquals(0.45f, shadowAlpha(100f, isDark = true), delta)
     }
 

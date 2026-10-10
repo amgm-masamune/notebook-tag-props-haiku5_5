@@ -208,7 +208,12 @@ private fun NoteEditContent(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = NotebookDimens.ScreenPadding, vertical = 8.dp),
+                        .padding(
+                            start = NotebookDimens.ScreenPadding,
+                            end = NotebookDimens.ScreenPadding,
+                            top = 8.dp,
+                            bottom = 120.dp
+                        ),
                     verticalArrangement = Arrangement.spacedBy(NotebookDimens.SectionSpacing)
                 ) {
                     // タイトル(大きな見出しスタイルの入力) + H1 同期

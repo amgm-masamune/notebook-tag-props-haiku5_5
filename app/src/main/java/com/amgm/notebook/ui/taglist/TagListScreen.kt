@@ -107,7 +107,7 @@ fun TagListScreen(viewModel: TagListViewModel, snackbarHostState: SnackbarHostSt
                         start = NotebookDimens.ScreenPadding,
                         end = NotebookDimens.ScreenPadding,
                         top = 12.dp,
-                        bottom = 96.dp
+                        bottom = 160.dp
                     )
                 ) {
                     // 複数親のタグは同じ ID が複数行に出るため、キーは位置を含める

@@ -161,7 +161,7 @@ private fun NoteListContent(
                             start = NotebookDimens.ScreenPadding,
                             end = NotebookDimens.ScreenPadding,
                             top = 16.dp,
-                            bottom = 96.dp
+                            bottom = 160.dp
                         ),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()

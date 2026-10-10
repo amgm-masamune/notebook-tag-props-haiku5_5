@@ -14,11 +14,15 @@ data class ShaderSpec(val name: String, val source: String, val uniforms: List<U
  *
  * 時間を使う式は、ループ長（[LightState] の 3584 秒 = 2^9 × 7）の約数の周期だけを使う。
  * これによりループの折り返しで光源や木漏れ日が跳ばない。
- * 周期: 光源と木漏れ日 28 秒 / 脈動・呼吸 7 秒 / ガラスのきらめき 14 秒。
+ * 周期: 光源 28 秒 / 脈動・呼吸 7 秒 / ガラスのきらめき 14 秒 / 木漏れ日の漂い 112 秒と 224 秒。
  */
 object NotebookShaders {
 
-    /** 全画面の背景。紙色 + 光源からの減衰 + 木漏れ日のゆらぎ + ビネット + 粒状感。 */
+    /**
+     * 全画面の背景。
+     * ライトは紙色の上に暖白の光を当て（光の当たる側は必ずベース以上の明るさ）、窓の光と木漏れ日を重ねる。
+     * ダークはインクの地に上部中央の卓上灯の溜まりを加算し、四隅を沈める。
+     */
     val AMBIENT = ShaderSpec(
         name = "ambient",
         source = """
@@ -47,30 +51,59 @@ object NotebookShaders {
                 return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
             }
 
+            // 窓ガラス 1 枚。回転後の座標 r で、中心 cx・半幅 hw・半高 hh の柔らかい矩形（縁のぼかし幅 b）
+            float windowPane(float2 r, float cx, float hw, float hh, float b) {
+                float inX = 1.0 - smoothstep(-b, b, abs(r.x - cx) - hw);
+                float inY = 1.0 - smoothstep(-b, b, abs(r.y) - hh);
+                return inX * inY;
+            }
+
             half4 main(float2 fragCoord) {
                 float2 uv = fragCoord / iResolution;
-                float span = max(iResolution.x, iResolution.y);
+                float wpx = iResolution.x;
+                float hpx = iResolution.y;
+                float diag = length(iResolution);
 
-                // 光源からの広い減衰（ダークは灯りの溜まりを絞る）
-                float dist = length(fragCoord - uLightPos) / span;
-                float reach = mix(1.1, 0.75, uDark);
-                float pool = exp(-(dist * dist) / (reach * reach));
+                // 光源からの減衰。ライトは対角線の広さ、ダークは画面高さの溜まりに絞る
+                float dist = length(fragCoord - uLightPos);
+                float poolRadius = mix(diag * 0.85, hpx * 0.55, uDark);
+                float pool = exp(-pow(dist / poolRadius, 2.0));
 
-                // 木漏れ日: 2層の value noise を周期 28 秒の小さな円軌道で漂わせる
-                float w = iTime * 6.2831853 / 28.0;
-                float2 drift = float2(cos(w), sin(w)) * 0.8;
-                float n1 = valueNoise(fragCoord / 150.0 + drift);
-                float n2 = valueNoise(fragCoord / 67.0 - drift * 1.3 + 11.0);
-                float patchAmt = n1 * 0.6 + n2 * 0.4;
-                float litSide = smoothstep(0.15, 0.9, pool);
-                float dapple = smoothstep(0.45, 0.9, patchAmt) * litSide;
+                // ライト: 暖白へ最大 60% 寄せる（暖白の輝度は紙色より高いので、当たる側は明るくなる）
+                float3 col = mix(uBaseColor.rgb, uKeyColor.rgb, clamp(pool * 0.6 * uIntensity, 0.0, 1.0) * (1.0 - uDark));
+                // ダーク: 卓上灯の暖色を加算する
+                col += uKeyColor.rgb * pool * 0.20 * uDark;
 
-                float keyAmount = clamp((pool * 0.30 + dapple * 0.06) * uIntensity, 0.0, 1.0);
-                float3 col = mix(uBaseColor.rgb, uKeyColor.rgb, keyAmount);
+                // 窓の光（ライトのみ）: 光源方向に沿って約 -28° 回転した座標系の、2 枚の柔らかい平行四辺形
+                float2 q = fragCoord - iResolution * float2(0.34, 0.30);
+                float2 rot = float2(0.88295 * q.x + 0.46947 * q.y, -0.46947 * q.x + 0.88295 * q.y);
+                rot.x -= rot.y * 0.16;
+                float panes = windowPane(rot, -0.1475 * wpx, 0.13 * wpx, 0.275 * hpx, 0.035 * wpx)
+                    + windowPane(rot, 0.1475 * wpx, 0.13 * wpx, 0.275 * hpx, 0.035 * wpx);
 
-                // ビネット: 画面端を影の色へ沈める
-                float vig = smoothstep(0.3, 0.85, length(uv - 0.5) * 1.4) * mix(0.12, 0.55, uDark);
-                col = mix(col, uShadowColor.rgb, vig);
+                // 木漏れ日のゆらぎ: 2 層の value noise（スケール 画面幅の 1/3 と 1/7）を、ゆっくり漂わせる
+                float w1 = iTime * 6.2831853 / 112.0;
+                float w2 = iTime * 6.2831853 / 224.0;
+                float n1 = valueNoise(fragCoord / (wpx / 3.0) + float2(cos(w1), sin(w1)) * 0.5);
+                float n2 = valueNoise(fragCoord / (wpx / 7.0) + float2(cos(w2), sin(w2)) * 0.7 + 11.0);
+                float flicker = 0.7 + 0.3 * clamp(2.0 * n1 * n2, 0.0, 1.0);
+
+                // 窓の光の強さは白方向へ 6.5% を上限に、ゆらぎで変調する（ゆらぎは窓の中だけに見える）
+                float winAmt = clamp(panes, 0.0, 1.0) * flicker * 0.065 * (1.0 - uDark);
+                col = mix(col, float3(1.0), winAmt);
+
+                // ダーク: 下からごく弱い寒色のフィル
+                float3 fill = float3(0.118, 0.137, 0.251); // #1E2340
+                float low = smoothstep(0.35, 1.0, uv.y);
+                col = mix(col, fill, 0.05 * low * uDark);
+
+                // ビネット: 暖かい影色で端を沈める。ライトは光源から遠い右下だけ少し強く、光源側は暗くしない。
+                // ダークは四隅へ最大 25%
+                float farness = clamp(dist / (diag * 0.9), 0.0, 1.0);
+                float edgeAmt = smoothstep(0.30, 0.71, length(uv - 0.5));
+                float vigMax = mix(mix(0.05, 0.07, farness), 0.25, uDark);
+                float vigSide = mix(smoothstep(0.2, 0.9, farness), 1.0, uDark);
+                col = mix(col, uShadowColor.rgb, edgeAmt * vigMax * vigSide);
 
                 // 紙の粒状感（ピクセル単位の静的なハッシュ）
                 float grain = hash21(floor(fragCoord)) - 0.5;
@@ -92,7 +125,10 @@ object NotebookShaders {
         )
     )
 
-    /** カードの面。角丸マスク内に、柔らかなスペキュラ・縁のリムライト・押下のグローを載せる。 */
+    /**
+     * カードの面。角丸マスク内に、光源方向に沿った線形の面の色、柔らかなスペキュラ、
+     * 縁の 1.2px のベベル（光源側は明るく、反対側は沈める）、押下点からのグローを載せる。
+     */
     val SURFACE = ShaderSpec(
         name = "surface",
         source = """
@@ -104,6 +140,8 @@ object NotebookShaders {
             uniform float uRadius;
             uniform float uPress;
             uniform float2 uPressPos;
+            uniform float4 uPressColor;
+            uniform float uDark;
             uniform float iTime;
 
             float sdRoundRect(float2 p, float2 halfSize, float r) {
@@ -122,32 +160,43 @@ object NotebookShaders {
                 float2 toLight = uLightPos - halfSize;
                 float2 lightDir = toLight / max(length(toLight), 0.0001);
 
-                // 柔らかなスペキュラ: 光源側へ寄せた点を中心に大きくぼかす
+                // 縁の外向き法線（SDF の勾配を 1px 差分で求める）と、光源方向との内積
+                float2 gradRaw = float2(
+                    sdRoundRect(p + float2(1.0, 0.0), halfSize, r) - d,
+                    sdRoundRect(p + float2(0.0, 1.0), halfSize, r) - d
+                );
+                float2 grad = gradRaw / max(length(gradRaw), 0.0001);
+                float facing = dot(grad, lightDir);
+                float facingLit = smoothstep(-0.3, 0.7, facing);
+                float facingOpp = smoothstep(-0.3, 0.7, -facing);
+
+                // 面の基本色: 光源方向に沿って線形。光源側は持ち上げ（ライトは白、ダークは卓上灯の暖色）、
+                // 反対側は 4% 沈める
+                float side = clamp(dot(p / halfSize, lightDir) * 0.5 + 0.5, 0.0, 1.0);
+                float3 face = uBaseColor.rgb * (1.0 - 0.04 * (1.0 - side));
+                face = mix(face, uHighlightColor.rgb, side * mix(0.5, 0.06, uDark));
+
+                // スペキュラ: 光源側へ寄せた点を中心に大きくぼかし、白（ダークは暖色）へ寄せる
                 float2 hc = halfSize + lightDir * halfSize * 0.6;
                 float2 hd = fragCoord - hc;
-                float spread = max(iResolution.x, iResolution.y) * 0.6;
+                float spread = max(iResolution.x, iResolution.y) * 0.9;
                 float breath = 0.94 + 0.06 * sin(iTime * 6.2831853 / 7.0);
                 float spec = exp(-dot(hd, hd) / (spread * spread)) * uHighlightColor.a * breath;
+                face = mix(face, uHighlightColor.rgb, spec);
 
-                // リムライト: 内側 1.5px 程度の帯。光源側の縁ほど強い
-                float band = 1.0 - smoothstep(0.0, 0.9, abs(d + 0.8));
-                float2 nrm = p / max(length(p), 0.0001);
-                float facing = clamp(dot(nrm, lightDir), 0.0, 1.0);
-                float rim = band * (0.2 + 0.8 * facing) * uRimColor.a;
+                // ベベル: 縁の内側 1.2px の帯。光源側はリム色で明るく、反対側はわずかに沈める
+                float band = 1.0 - smoothstep(0.0, 0.6, abs(d + 0.6));
+                face = mix(face, uRimColor.rgb, band * facingLit * uRimColor.a);
+                face *= 1.0 - mix(0.06, 0.03, uDark) * band * facingOpp;
 
-                // 押下点からの放射状のグロー
+                // 押下点からの放射状のグロー（半径は幅の 0.6 倍。ライトは主色、ダークはテアル）
                 float2 pd = fragCoord - uPressPos;
-                float pr = max(iResolution.x, iResolution.y) * 0.45;
-                float press = exp(-dot(pd, pd) / (pr * pr)) * uPress * 0.14;
-
-                float3 col = uBaseColor.rgb;
-                col += uHighlightColor.rgb * spec * 0.22;
-                col += uRimColor.rgb * rim;
-                col += uHighlightColor.rgb * press;
-                col = clamp(col, 0.0, 1.0);
+                float pr = iResolution.x * 0.6;
+                float press = exp(-dot(pd, pd) / (pr * pr)) * uPress * 0.10;
+                face = mix(face, uPressColor.rgb, press);
 
                 float a = mask * uBaseColor.a;
-                return half4(col * a, a);
+                return half4(clamp(face, 0.0, 1.0) * a, a);
             }
         """.trimIndent(),
         uniforms = listOf(
@@ -159,11 +208,13 @@ object NotebookShaders {
             UniformSpec("uRadius", 1),
             UniformSpec("uPress", 1),
             UniformSpec("uPressPos", 2),
+            UniformSpec("uPressColor", 4),
+            UniformSpec("uDark", 1),
             UniformSpec("iTime", 1),
         )
     )
 
-    /** 柔らかい影。角丸矩形の SDF から指数減衰させる。乗算済みで返す。 */
+    /** 柔らかい影。角丸矩形の SDF から指数減衰させる。乗算済みで返す。内側（要素の下）は描かない。 */
     val SHADOW = ShaderSpec(
         name = "shadow",
         source = """
@@ -184,13 +235,15 @@ object NotebookShaders {
                 float r = min(uRadius, min(uRectSize.x, uRectSize.y) * 0.5);
                 float d = sdRoundRect(p, uRectSize * 0.5, r);
 
+                // 要素の内側（d < 0）は描かない。半透明の面の下で影が透けないように外側だけ描く
+                float outsideWeight = smoothstep(0.0, 1.0, d);
+
                 // 描画領域の端 2px で影を消し、切り口が見えないようにする
                 float2 border = min(fragCoord, iResolution - fragCoord);
                 float edge = smoothstep(0.0, 2.0, min(border.x, border.y));
 
-                // 内側（d < 0）は max(d, 0) = 0 で減衰なし = uShadowColor.a
                 float falloff = exp(-pow(max(d, 0.0) / max(uBlur, 0.001), 2.0) * 1.8);
-                float a = uShadowColor.a * falloff * edge;
+                float a = uShadowColor.a * falloff * outsideWeight * edge;
                 return half4(uShadowColor.rgb * a, a);
             }
         """.trimIndent(),
@@ -204,7 +257,10 @@ object NotebookShaders {
         )
     )
 
-    /** 半透明の板（ボトムバー等）。背景のぼかしは行わない。上辺の細い光の線を持つ。 */
+    /**
+     * 半透明の板（ボトムバー等）。背景のぼかしは行わない。上辺に 1px の光の線を持ち、
+     * 光源側へごく弱いグラデーションを載せる。線と板は over 合成する（premultiplied で返す）。
+     */
     val GLASS = ShaderSpec(
         name = "glass",
         source = """
@@ -234,23 +290,28 @@ object NotebookShaders {
                 float2 toLight = uLightPos - halfSize;
                 float2 lightDir = toLight / max(length(toLight), 0.0001);
 
-                // 上辺の細い光の線（スペキュラのエッジ）
-                float band = 1.0 - smoothstep(0.0, 0.9, abs(d + 0.8));
+                // 上辺の 1px の光の線（不透明度は uHighlightColor.a）
+                float band = 1.0 - smoothstep(0.0, 0.6, abs(d + 0.6));
                 float topness = clamp(0.5 - 0.5 * (p.y / halfSize.y), 0.0, 1.0);
-                float edgeLine = band * topness * topness;
+                float lineOp = clamp(band * topness * topness * uHighlightColor.a, 0.0, 1.0);
 
-                // 光源側からのゆるいグラデーション（周期 14 秒のごく小さなきらめき）
+                // 光源側からのゆるいグラデーション（4%。周期 14 秒のごく小さなきらめき）
                 float facing = clamp(dot(p / halfSize, lightDir) * 0.5 + 0.5, 0.0, 1.0);
                 float shimmer = 0.9 + 0.1 * sin(iTime * 6.2831853 / 14.0);
-                float sheen = facing * 0.10 * shimmer;
+                float3 tint = mix(uTint.rgb, uHighlightColor.rgb, facing * 0.04 * shimmer);
+
+                // 線を板の上に over 合成する（premultiplied）
+                float tintA = uTint.a;
+                float outA = lineOp + tintA * (1.0 - lineOp);
+                float3 outRGB = uHighlightColor.rgb * lineOp + tint * tintA * (1.0 - lineOp);
 
                 // ごく弱いノイズ
                 float grain = hash21(floor(fragCoord)) - 0.5;
+                outRGB += grain * 0.012 * outA;
 
-                float3 col = uTint.rgb + uHighlightColor.rgb * (sheen + edgeLine * 0.5);
-                col += grain * 0.012;
-                float a = mask * clamp(uTint.a + edgeLine * uHighlightColor.a * 0.5, 0.0, 1.0);
-                return half4(clamp(col, 0.0, 1.0) * a, a);
+                outA = clamp(outA, 0.0, 1.0) * mask;
+                outRGB = clamp(outRGB, 0.0, 1.0) * mask;
+                return half4(outRGB, outA);
             }
         """.trimIndent(),
         uniforms = listOf(

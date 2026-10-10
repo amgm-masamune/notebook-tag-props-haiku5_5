@@ -33,8 +33,8 @@ fun lightPositionAt(timeSec: Float, anchor: Offset, driftRadius: Float, periodSe
 private const val ELLIPSE_RATIO = 0.6f
 
 /**
- * 要素の影のずれ量。光源から要素中心へ向かう単位ベクトル方向に、
- * `elevationPx * 0.5` の長さ（[maxOffsetPx] で頭打ち）だけ落とす。
+ * 要素の（環境）影のずれ量。光源から要素中心へ向かう単位ベクトル方向に、
+ * `elevationPx * 0.9` の長さ（[maxOffsetPx] で頭打ち）だけ落とす。
  * 光源と中心が一致するときは真下へ `elevationPx * 0.25` ずらす。
  */
 fun shadowOffset(lightPos: Offset, elementCenter: Offset, elevationPx: Float, maxOffsetPx: Float): Offset {
@@ -42,19 +42,19 @@ fun shadowOffset(lightPos: Offset, elementCenter: Offset, elevationPx: Float, ma
     val dy = elementCenter.y - lightPos.y
     val length = sqrt(dx * dx + dy * dy)
     if (length <= EPSILON) return Offset(0f, elevationPx * 0.25f)
-    val magnitude = min(elevationPx * 0.5f, maxOffsetPx)
+    val magnitude = min(elevationPx * 0.9f, maxOffsetPx)
     return Offset(dx / length * magnitude, dy / length * magnitude)
 }
 
 /**
- * 影の不透明度。ライト: `0.06 + elevation * 0.012`（上限 0.22）。
- * ダーク: `0.20 + elevation * 0.02`（上限 0.45）。
+ * 環境影（遠い層）の不透明度。ライト: `0.06 + elevation * 0.0117`（上限 0.13）。
+ * ダーク: `0.30 + elevation * 0.025`（上限 0.45）。
  */
 fun shadowAlpha(elevationDp: Float, isDark: Boolean): Float =
     if (isDark) {
-        min(0.20f + elevationDp * 0.02f, 0.45f)
+        min(0.30f + elevationDp * 0.025f, 0.45f)
     } else {
-        min(0.06f + elevationDp * 0.012f, 0.22f)
+        min(0.06f + elevationDp * 0.0117f, 0.13f)
     }
 
 /**
@@ -84,9 +84,9 @@ fun colorToFloats(color: Color): FloatArray =
     floatArrayOf(color.red, color.green, color.blue, color.alpha)
 
 /**
- * 接地影（近い層）の不透明度。環境影の [shadowAlpha] を 1.3 倍し、上限 1 にする。
+ * 接地影（近い層）の不透明度。環境影の [shadowAlpha] の 0.65 倍（ライト約 0.08、ダーク約 0.29）。
  */
-fun contactShadowAlpha(ambientAlpha: Float): Float = min(1f, ambientAlpha * 1.3f)
+fun contactShadowAlpha(ambientAlpha: Float): Float = min(1f, ambientAlpha * 0.65f)
 
 /** 影のぼかし幅（px）に掛けて、描画矩形を広げる倍率。ガウス状の減衰が十分に 0 になる距離。 */
 private const val SHADOW_REACH = 3f

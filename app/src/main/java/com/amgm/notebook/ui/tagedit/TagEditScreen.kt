@@ -111,7 +111,12 @@ fun TagEditScreen(viewModel: TagEditViewModel, snackbarHostState: SnackbarHostSt
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = NotebookDimens.ScreenPadding, vertical = 8.dp),
+                        .padding(
+                            start = NotebookDimens.ScreenPadding,
+                            end = NotebookDimens.ScreenPadding,
+                            top = 8.dp,
+                            bottom = 120.dp
+                        ),
                     verticalArrangement = Arrangement.spacedBy(NotebookDimens.SectionSpacing)
                 ) {
                     val error = state.error

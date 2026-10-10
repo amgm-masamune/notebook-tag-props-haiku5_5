@@ -13,15 +13,16 @@
 | | ライト「窓辺の朝の光」 | ダーク「夜の卓上灯」 |
 |---|---|---|
 | 光源の位置（画面に対する正規化座標） | `(-0.15, -0.20)`。左上の画面外 | `(0.5, -0.25)`。上部中央の画面外 |
-| 背景 | 紙色の上に、右下へ差す暖色の光。木漏れ日のような低コントラストのゆらぎ。紙の粒状感 | 深いインク色に沈み、上部に暖色の灯りの溜まり。画面端は強いビネット |
-| カード | 面に柔らかなスペキュラ。縁は光源側にだけ細く光る（白） | 縁に淡い青白のリムライト。テアルのアクセントがかすかに発光 |
-| 影 | インクの影色 `#1B1C22` を薄く | 黒を、より濃く |
+| 背景 | 紙色（`#F6F5F1`）より明るい暖白（`#FFF8EA`）の光が左上から差す。窓の光（2 枚）に木漏れ日のゆらぎ。端はごく弱く暖色に沈む。粒状感 ±0.010 | インク `#121317` の地に、上部中央の卓上灯の溜まり。四隅は最大 25% 沈む。粒状感 ±0.012 |
+| カード | 暖白の面（`#FFFDF8`）に光源方向の線形グラデーション。光源側の縁に白の 1.2px のベベル | インク寄りのスレート（`#23252E`）。上縁に暖白のリム。押下でテアルのグローが広がる |
+| 影 | 暖かい茶インク `#3A3226` の 2 層（接地影と、光源と反対へ伸びる環境影） | 黒の 2 層を、より濃く |
 
 ## 2. 光源モデル
 
 - `LightState`（`LightState.kt`）が光源を表す。`rememberLightState(isDark)` で作り、`LocalLightState` で配下へ渡す（画面の入口で 1 回）。
 - 色は `Color.kt` の色トークンから作る。コンポーネントは色を直接書かず `LightState` の `keyColor` / `baseColor` / `shadowColor` / `highlightColor` / `rimColor` / `glowColor` を使う。
 - **位置の漂い**: `lightPositionPx(screenSize)` が `lightPositionAt` で光源を動かす。中心は anchor、横半径は画面幅 × 0.06、縦はその 0.6 倍の楕円を **周期 28 秒** で回る。
+- **色の約束**: ライトの光源色は紙色より明るい（光の当たる側は必ずベース以上の明るさ）。ダークの地はインクの `#121317` で、茶色には寄せない。
 - **時間ループ**: `rememberInfiniteTransition` で 0 → `LOOP_SECONDS`（3584 秒）を線形に繰り返す。自前の `withFrameNanos` ループは使わない（Compose の UI テストが無限アニメーションを止められなくなるため）。
 - **ループ長を 3584 秒にする理由**: 光源の周期 28 秒で割り切れる長さにするため（3584 = 28 × 128）。仕様の 3600 秒だと 28 秒の周期と合わず、1 時間ごとに光源が跳ぶ。脈動（7 秒）・きらめき（14 秒）も 3584 の約数で、ループの折り返しで跳ばない。新しい周期を追加するときは 3584 の約数にすること（7, 14, 28, 56, 64, 112, 128, 224, 256, 448, 512, 896, 1792）。
 - **モーション低減**: `Settings.Global.ANIMATOR_DURATION_SCALE == 0` のとき `motionEnabled = false`。時間は 0 扱いになり、光も木漏れ日も静止する。
@@ -29,8 +30,9 @@
 
 ## 3. 影の規則
 
-- `shadowOffset(lightPos, elementCenter, elevationPx, maxOffsetPx)`: 光源から要素中心へ向かう単位ベクトル × `elevationPx × 0.5`（`maxOffsetPx` で頭打ち）。光源と中心が一致したら真下へ `elevationPx × 0.25`。
-- `shadowAlpha(elevationDp, isDark)`: ライト `0.06 + elevation × 0.012`（上限 0.22）、ダーク `0.20 + elevation × 0.02`（上限 0.45）。
+- `shadowOffset(lightPos, elementCenter, elevationPx, maxOffsetPx)`: 光源から要素中心へ向かう単位ベクトル × `elevationPx × 0.9`（`maxOffsetPx` で頭打ち）。光源と中心が一致したら真下へ `elevationPx × 0.25`。
+- `shadowAlpha(elevationDp, isDark)`: 環境影の不透明度。ライト `0.06 + elevation × 0.0117`（上限 0.13）、ダーク `0.30 + elevation × 0.025`（上限 0.45）。
+- `contactShadowAlpha(ambientAlpha)`: 接地影の不透明度。環境影の 0.65 倍（上限 1）。
 - `highlightCenter(lightPos, elementTopLeft, elementSize)`: 要素ローカル座標で、要素中心から光源方向へ半サイズ × 0.6 寄せた点。`SURFACE` のスペキュラ中心と同じ式。
 
 ## 4. シェーダー 5 種
@@ -39,10 +41,10 @@
 
 | 名前 | 役割 | 描画範囲 | uniform（型・個数） |
 |---|---|---|---|
-| `AMBIENT`（ambient） | 全画面の背景。紙色、光源からの減衰、2 層の value noise による木漏れ日（光の当たる側だけ）、ビネット、静的ハッシュの粒状感 | 画面全体 | `iResolution`(float2), `iTime`(float), `uLightPos`(float2, px), `uBaseColor`(float4), `uKeyColor`(float4), `uShadowColor`(float4), `uIntensity`(float), `uGrain`(float), `uDark`(float, 0 or 1) |
-| `SURFACE`（surface） | カードの面。角丸 SDF マスク、柔らかなスペキュラ、光源側の縁のリムライト、押下点からの放射グロー | 要素 | `iResolution`(float2, 要素サイズ), `uLightPos`(float2, 要素ローカル。要素外可), `uBaseColor`(float4), `uHighlightColor`(float4), `uRimColor`(float4), `uRadius`(float), `uPress`(float, 0..1), `uPressPos`(float2), `iTime`(float) |
-| `SHADOW`（shadow） | 柔らかい影。角丸矩形 SDF からの指数減衰。乗算済み | 影の描画領域（ぼかし幅ぶん大きく） | `iResolution`(float2), `uRectCenter`(float2), `uRectSize`(float2), `uRadius`(float), `uBlur`(float), `uShadowColor`(float4) |
-| `GLASS`（glass） | 半透明の板（ボトムバー等）。上辺の細い光の線、光源側のゆるいグラデーション、ごく弱いノイズ。背景のぼかしはしない | 要素 | `iResolution`(float2), `uTint`(float4), `uHighlightColor`(float4), `uLightPos`(float2, 要素ローカル), `uRadius`(float), `iTime`(float) |
+| `AMBIENT`（ambient） | 全画面の背景。ライトは暖白の光の減衰と窓の光 2 枚（光源方向に約 -28° 回転した平行四辺形）、2 層の value noise による木漏れ日（窓の光の中だけ、周期 112・224 秒で漂う）、ダークは上部中央の卓上灯の溜まりと寒色のフィル。ビネット、静的ハッシュの粒状感 | 画面全体 | `iResolution`(float2), `iTime`(float), `uLightPos`(float2, px), `uBaseColor`(float4), `uKeyColor`(float4), `uShadowColor`(float4), `uIntensity`(float), `uGrain`(float), `uDark`(float, 0 or 1) |
+| `SURFACE`（surface） | カードの面。角丸 SDF マスク、光源方向に沿った面の色、柔らかなスペキュラ、縁の 1.2px のベベル（SDF の勾配と光源方向の内積で切り替え）、押下点からの放射グロー | 要素 | `iResolution`(float2, 要素サイズ), `uLightPos`(float2, 要素ローカル。要素外可), `uBaseColor`(float4), `uHighlightColor`(float4), `uRimColor`(float4), `uRadius`(float), `uPress`(float, 0..1), `uPressPos`(float2), `uPressColor`(float4), `uDark`(float, 0 or 1), `iTime`(float) |
+| `SHADOW`（shadow） | 柔らかい影。角丸矩形 SDF からの指数減衰。乗算済み。要素の内側は描かない（半透明の面の下で透けないように） | 影の描画領域（ぼかし幅ぶん大きく） | `iResolution`(float2), `uRectCenter`(float2), `uRectSize`(float2), `uRadius`(float), `uBlur`(float), `uShadowColor`(float4) |
+| `GLASS`（glass） | 半透明の板（ボトムバー等）。上辺の 1px の光の線を板の上に over 合成、光源側のゆるいグラデーション（4%）、ごく弱いノイズ。背景のぼかしはしない | 要素 | `iResolution`(float2), `uTint`(float4), `uHighlightColor`(float4), `uLightPos`(float2, 要素ローカル), `uRadius`(float), `iTime`(float) |
 | `GLOW`（glow） | FAB や選択要素の後光。形の内側は描かず、外側へ指数減衰。周期 7 秒で ±10% 脈動 | 要素の外側まで広く | `iResolution`(float2), `uRectCenter`(float2), `uRectSize`(float2), `uRadius`(float), `uGlowColor`(float4), `uSpread`(float), `iTime`(float) |
 
 - `SHADOW` と `GLOW` は描画領域の端 2px で光・影をフェードする（切り口が見えないように）。描画領域は十分な余白を取ること。
@@ -55,10 +57,10 @@
 
 | 効果 | API 33 以上 | API 26〜32 |
 |---|---|---|
-| 背景の光 | `AMBIENT` | `Brush.radialGradient`（光源位置に中心）＋ 暖色の半透明 |
-| カードの面・リム | `SURFACE` | `Brush.linearGradient`（光源側が明るい）＋ 縁の細い `border` |
+| 背景の光 | `AMBIENT` | `Brush.radialGradient`（光源位置に中心）＋ 暖白（ダークは卓上灯）の半透明、下端の弱い影 |
+| カードの面・リム | `SURFACE` | `Brush.linearGradient`（光源側の明るみ、反対側の沈み）＋ 光源側の縁の 1dp の線 |
 | 影 | `SHADOW` | `Modifier.shadow`（`shadowAlpha` の値と `shadowOffset` のずれを elevation に反映） |
-| 板の光の線 | `GLASS` | 上辺の 1dp の線（`highlightColor`）のみ |
+| 板の光の線 | `GLASS` | 板の色（ライト白 0.72 / ダーク `#1C1E25` 0.78）と上辺の 1dp の線 |
 | 後光 | `GLOW` | `Modifier.shadow` の `ambientColor` / `spotColor` に `glowColor` |
 
 フォールバックでも光源の向きは同じ（左上から右下）に揃える。
@@ -69,10 +71,10 @@
 
 | 部品 | ファイル | 役割 | API 26〜32 |
 |---|---|---|---|
-| `AmbientLightBackground(modifier, content)` | `AmbientLightBackground.kt` | 画面の背面に `AMBIENT` を全面描画し、その上に `content`。`NotebookApp` が画面全体を包む | 紙色 + 光源位置を中心とする放射グラデーション + 下端の薄い影 |
-| `Modifier.softShadow(cornerRadius, elevation)` | `SoftShadow.kt` | 2 層の `SHADOW`。接地影（ぼかし 0.6 × elevation、ずれ 0.3 倍、不透明度 1.3 倍）と環境影（ぼかし 2.2 × elevation、ずれ 1 倍）。要素の外へはみ出して描く | `Modifier.shadow`（`ambientColor` / `spotColor` に影色） |
-| `Modifier.litSurface(cornerRadius, baseColor, interactionSource?)` | `LitSurface.kt` | `SURFACE` で面を描く。押下点から光が広がり、離すと 220ms で消える | 色の塗り + 左上から透明へ白の半透明（ライト 0.35 / ダーク 0.08）+ 上辺の 1dp の線 |
-| `Modifier.glassPanel(cornerRadius)` | `GlassPanel.kt` | `GLASS` で半透明の板を描く（ライト面色 0.82、ダーク 0.78）。ボトムバー用 | 面色の半透明 + 上辺の 1dp の線 |
+| `AmbientLightBackground(modifier, content)` | `AmbientLightBackground.kt` | 画面の背面に `AMBIENT` を全面描画し、その上に `content`。`NotebookApp` が画面全体を包む | 紙色 + 光源位置を中心とする放射グラデーション + 下端の弱い影 |
+| `Modifier.softShadow(cornerRadius, elevation)` | `SoftShadow.kt` | 2 層の `SHADOW`。接地影（ぼかし 1.5dp + elevation × 0.35、ずれ 0.25 倍、不透明度 0.65 倍）と環境影（ぼかし elevation × 3.0、光源と反対へ elevation × 0.9 ずらす）。要素の外へはみ出して描く | `Modifier.shadow`（`ambientColor` / `spotColor` に影色） |
+| `Modifier.litSurface(cornerRadius, baseColor, interactionSource?)` | `LitSurface.kt` | `SURFACE` で面を描く。押下点から光が広がり、離すと 220ms で消える。`baseColor` の既定はカードの `surface`（ライト `#FFFDF8`、ダーク `#23252E`） | 色の塗り + 光源側の明るみ・反対側の沈み + 光源側の縁の 1dp の線 |
+| `Modifier.glassPanel(cornerRadius)` | `GlassPanel.kt` | `GLASS` で半透明の板を描く（ライト白 0.72、ダーク `#1C1E25` 0.78）。上辺の線はライト白 0.95、ダーク暖白 0.25。ボトムバー用 | 板の色の半透明 + 上辺の 1dp の線 |
 | `GlowFab(text, icon, onClick, modifier)` | `GlowFab.kt` | 拡張 FAB の背後に `GLOW`（広がり 24dp、色 `glowColor`、不透明度 0.45）。`modifier`（testTag を含む）は FAB 本体へ渡す | `Modifier.shadow` の `spotColor` を `glowColor` にする |
 
 共通の約束:

@@ -92,8 +92,8 @@ class LightComponentMathTest {
     // ---- contactShadowAlpha ----
 
     @Test
-    fun `接地影の不透明度は環境影の 1_3 倍で上限は 1`() {
-        assertEquals(0.13f, contactShadowAlpha(0.1f), delta)
-        assertEquals(1f, contactShadowAlpha(0.9f), delta)
+    fun `接地影の不透明度は環境影の 0_65 倍で上限は 1`() {
+        assertEquals(0.065f, contactShadowAlpha(0.1f), delta)
+        assertEquals(1f, contactShadowAlpha(2f), delta)
     }
 }

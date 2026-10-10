@@ -31,15 +31,15 @@ import androidx.compose.ui.unit.dp
 /** 押下の光の広がりが消えるまでの時間（ms）。押下中は 1、離すと 0 へ戻る。 */
 private const val PRESS_ANIMATION_MS = 220
 
-/** API 26〜32 で、面の上辺に引く光の線の太さ。 */
+/** API 26〜32 で、面の縁に引く光の線の太さ。 */
 private val FallbackEdgeLine = 1.dp
 
 /**
  * カードなどの面を、光源に照らされた素材として描く。
  *
- * - API 33 以上: [NotebookShaders.SURFACE]。角丸で切ったうえで、柔らかなスペキュラ、光源側の縁のリムライト、
- *   押下点からのグローを描く。光源の位置は要素ローカルに変換して渡す。
- * - API 26〜32: [baseColor] の塗り、光源側（左上）から透明へ向かう白の半透明、上辺の 1dp の光の線。
+ * - API 33 以上: [NotebookShaders.SURFACE]。角丸で切ったうえで、光源方向に沿った面の色、柔らかなスペキュラ、
+ *   縁の 1.2px のベベル（光源側は明るく、反対側は沈める）、押下点からのグローを描く。光源の位置は要素ローカルに変換して渡す。
+ * - API 26〜32: [baseColor] の塗り、光源側（左上）の明るみ、反対側の沈み、光源側の縁の 1dp の線。
  *
  * [interactionSource] を渡すと、その押下（[PressInteraction.Press]）の位置から光が広がり、離すと消える。
  * 押下の状態は描画フェーズでだけ読む（再コンポーズは押下の開始と終了の時だけ）。
@@ -121,30 +121,42 @@ private fun Modifier.surfaceShader(
             shader.setUniform("uRadius", cornerPx)
             shader.setUniform("uPress", press.value)
             shader.setUniform("uPressPos", pressPos.value)
+            shader.setUniform("uPressColor", light.pressColor)
+            shader.setUniform("uDark", if (light.isDark) 1f else 0f)
             shader.setUniform("iTime", light.shaderTimeSec())
             drawRect(brush)
         }
 }
 
-/** API 26〜32 の面。 */
+/**
+ * API 26〜32 の面。面色の上に、光源側（左上）の明るみ、反対側（右下）のわずかな沈み、
+ * 光源側の縁の 1dp の線を重ねる。シェーダー版と同じ方向に揃える。
+ */
 private fun DrawScope.drawFallbackSurface(light: LightState, baseColor: Color) {
     drawRect(baseColor)
-    val whiteAlpha = if (light.isDark) 0.08f else 0.35f
+    val litColor = if (light.isDark) light.highlightColor.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.5f)
     drawRect(
         Brush.linearGradient(
-            colors = listOf(Color.White.copy(alpha = whiteAlpha), Color.Transparent),
+            colors = listOf(litColor, Color.Transparent),
             start = Offset.Zero,
+            end = Offset(size.width, size.height)
+        )
+    )
+    drawRect(
+        Brush.linearGradient(
+            colors = listOf(Color.Transparent, light.shadowColor.copy(alpha = if (light.isDark) 0.06f else 0.04f)),
+            start = Offset(size.width * 0.3f, size.height * 0.3f),
             end = Offset(size.width, size.height)
         )
     )
     val half = FallbackEdgeLine.toPx() / 2f
     drawLine(
-        color = Color.White.copy(alpha = whiteAlpha * 1.6f),
+        color = light.rimColor.copy(alpha = rimAlpha(light.isDark)),
         start = Offset(0f, half),
         end = Offset(size.width, half),
         strokeWidth = FallbackEdgeLine.toPx()
     )
 }
 
-/** 縁のリムライトの強さ（uRimColor のアルファ）。ライト 0.6、ダーク 0.25。 */
-internal fun rimAlpha(isDark: Boolean): Float = if (isDark) 0.25f else 0.6f
+/** 縁のリムライトの強さ（uRimColor のアルファ）。ライト 0.9（白）、ダーク 0.35（暖白）。 */
+internal fun rimAlpha(isDark: Boolean): Float = if (isDark) 0.35f else 0.9f

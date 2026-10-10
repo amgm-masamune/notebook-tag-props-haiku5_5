@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.services.storage.TestStorage
@@ -52,6 +53,9 @@ class ScreenshotCaptureTest {
     val rule = createAndroidComposeRule<ComponentActivity>()
 
     private val timeout = 10_000L
+
+    /** プレビューは切替後にレイアウトが入るまで余裕を持って待つ。 */
+    private val previewTimeout = 15_000L
 
     private val container
         get() = (InstrumentationRegistry.getInstrumentation()
@@ -340,15 +344,28 @@ class ScreenshotCaptureTest {
     @Test
     fun notePreview_light() = capture("note_preview", dark = false) {
         openNote("リリース計画")
-        click(TestTags.NOTE_EDIT_MODE_PREVIEW)
-        waitForTag(TestTags.NOTE_EDIT_PREVIEW)
+        openPreview()
     }
 
     @Test
     fun notePreview_dark() = capture("note_preview", dark = true) {
         openNote("リリース計画")
-        click(TestTags.NOTE_EDIT_MODE_PREVIEW)
-        waitForTag(TestTags.NOTE_EDIT_PREVIEW)
+        openPreview()
+    }
+
+    /**
+     * 本文カードの「プレビュー」切替を押し、プレビュー領域が画面に入るまでスクロールする。
+     * 切替ボタンは長いプロパティ欄の下にあり、スクロールせずに押すと押下が画面外に落ちて切り替わらない。
+     * プレビュー領域は mergeDescendants の内側にあるため、未マージのツリーで待つ。
+     */
+    private fun openPreview() {
+        waitForTag(TestTags.NOTE_EDIT_MODE_PREVIEW)
+        rule.onNodeWithTag(TestTags.NOTE_EDIT_MODE_PREVIEW).performScrollTo().performClick()
+        rule.waitUntil(timeoutMillis = previewTimeout) {
+            rule.onAllNodesWithTag(TestTags.NOTE_EDIT_PREVIEW, useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        rule.onNodeWithTag(TestTags.NOTE_EDIT_PREVIEW, useUnmergedTree = true).performScrollTo()
     }
 
     /** (4) タグ一覧（ボトムナビの「タグ」タブ） */

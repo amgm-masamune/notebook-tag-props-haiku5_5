@@ -21,12 +21,14 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-/** 接地影（近い層）のぼかし幅。要素の elevation に掛ける。 */
-private const val CONTACT_BLUR_RATIO = 0.6f
+/** 接地影（近い層）の基準のぼかし幅。elevation によらず、これだけは常に柔らかくする。 */
+private val ContactBaseBlur = 1.5f.dp
+/** 接地影（近い層）のぼかし幅の増分。elevation に掛ける。 */
+private const val CONTACT_BLUR_RATIO = 0.35f
 /** 接地影のずれ。環境影のずれ（[shadowOffset]）に掛ける。 */
-private const val CONTACT_OFFSET_RATIO = 0.3f
+private const val CONTACT_OFFSET_RATIO = 0.25f
 /** 環境影（遠い層）のぼかし幅。elevation に掛ける。 */
-private const val AMBIENT_BLUR_RATIO = 2.2f
+private const val AMBIENT_BLUR_RATIO = 3.0f
 /** 影のずれの上限（dp）。 */
 private val MAX_SHADOW_OFFSET = 16.dp
 
@@ -34,7 +36,8 @@ private val MAX_SHADOW_OFFSET = 16.dp
  * 要素の周りに、光源と反対向きへ落ちる柔らかい影を描く。影は要素の外へはみ出して描く。
  *
  * - API 33 以上: [NotebookShaders.SHADOW] を 2 層（接地影と環境影）。
- *   光源から要素中心へ向かう向きに [shadowOffset] だけずらす。
+ *   接地影はぼかし 1.5dp + elevation × 0.35、ずれ 0.25 倍。環境影はぼかし elevation × 3.0、
+ *   光源と反対方向へ elevation × 0.9 ずらす（[shadowOffset]）。
  * - API 26〜32: [Modifier.shadow]（色は影色と [shadowAlpha]）。
  *
  * 形は角丸矩形（[cornerRadius]）。影の強さは [elevation] で決まる。
@@ -48,6 +51,7 @@ fun Modifier.softShadow(cornerRadius: Dp, elevation: Dp): Modifier = composed {
     val cornerPx = with(density) { cornerRadius.toPx() }
     val elevationPx = with(density) { elevation.toPx() }
     val maxOffsetPx = with(density) { MAX_SHADOW_OFFSET.toPx() }
+    val contactBaseBlurPx = with(density) { ContactBaseBlur.toPx() }
     val alpha = shadowAlpha(elevation.value, light.isDark)
     if (ShaderSupport.isRuntimeShaderSupported) {
         Modifier.trackRootBounds(bounds).shadowLayers(
@@ -57,7 +61,8 @@ fun Modifier.softShadow(cornerRadius: Dp, elevation: Dp): Modifier = composed {
             cornerPx = cornerPx,
             elevationDp = elevation.value,
             elevationPx = elevationPx,
-            maxOffsetPx = maxOffsetPx
+            maxOffsetPx = maxOffsetPx,
+            contactBlurPx = contactBaseBlurPx + elevationPx * CONTACT_BLUR_RATIO
         )
     } else {
         Modifier.shadow(
@@ -82,7 +87,8 @@ private fun Modifier.shadowLayers(
     cornerPx: Float,
     elevationDp: Float,
     elevationPx: Float,
-    maxOffsetPx: Float
+    maxOffsetPx: Float,
+    contactBlurPx: Float
 ): Modifier {
     val contactShader = rememberRuntimeShader(NotebookShaders.SHADOW)
     val ambientShader = rememberRuntimeShader(NotebookShaders.SHADOW)
@@ -102,7 +108,7 @@ private fun Modifier.shadowLayers(
             brush = contactBrush,
             elementSize = size,
             offset = offset * CONTACT_OFFSET_RATIO,
-            blurPx = elevationPx * CONTACT_BLUR_RATIO,
+            blurPx = contactBlurPx,
             cornerPx = cornerPx,
             color = light.shadowColor.copy(alpha = contactShadowAlpha(alpha))
         )

@@ -85,7 +85,7 @@ fun TableIndexScreen(
                         start = NotebookDimens.ScreenPadding,
                         end = NotebookDimens.ScreenPadding,
                         top = 12.dp,
-                        bottom = 24.dp
+                        bottom = 160.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {

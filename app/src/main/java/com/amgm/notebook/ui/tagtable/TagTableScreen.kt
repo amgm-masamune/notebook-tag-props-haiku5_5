@@ -180,17 +180,17 @@ private fun TableContent(
     val baseColor = scheme.surface
     val altColor = MaterialTheme.extraColors.rowAlt
 
-    // 表全体を 1 枚の光るカードに載せる。行の地は透明にしてカードの面を見せ、固定列だけは不透明に保つ
+    // 表全体を 1 枚の光るカードに載せる。カードの高さは内容に合わせ、下端の FAB 分の余白を空ける
     Box(
         modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = NotebookDimens.ScreenPadding, vertical = 8.dp)
+            .fillMaxWidth()
+            .padding(start = NotebookDimens.ScreenPadding, end = NotebookDimens.ScreenPadding, top = 8.dp, bottom = 120.dp)
             .softShadow(cornerRadius = NotebookDimens.CardRadius, elevation = NotebookDimens.MainElevation)
             .litSurface(cornerRadius = NotebookDimens.CardRadius, baseColor = baseColor)
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .clipToBounds()
                 .horizontalScroll(horizontal)
                 .testTag(TestTags.TAG_TABLE)
@@ -230,10 +230,8 @@ private fun TableContent(
             ) {
                 table.rows.forEachIndexed { index, row ->
                     val even = index % 2 == 0
-                    // 通常の行はカードの面を透かし、交互の行だけ薄く塗る
-                    val rowColor = if (even) Color.Transparent else altColor
-                    // 横スクロールで流れてくる内容を隠す固定列は、不透明の地を使う
-                    val stickyColor = if (even) baseColor else altColor
+                    // 固定列もスクロールする列も同じ不透明の地を使い、横スクロール時に色の継ぎ目を出さない
+                    val rowColor = if (even) baseColor else altColor
                     Row(
                         modifier = Modifier
                             .height(RowHeight)
@@ -248,7 +246,7 @@ private fun TableContent(
                                 .height(RowHeight)
                                 .offset { IntOffset(horizontal.value, 0) }
                                 .zIndex(1f)
-                                .background(stickyColor)
+                                .background(rowColor)
                                 .padding(horizontal = 16.dp),
                             contentAlignment = Alignment.CenterStart
                         ) {
