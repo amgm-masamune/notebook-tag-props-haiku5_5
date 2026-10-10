@@ -101,7 +101,7 @@ UI 方針: Material3 を土台に、独自のテーマとコンポーネント�
 | 役割 | ライト | ダーク |
 |---|---|---|
 | 背景（紙色） `background` | `#F6F5F1` | `#121317` |
-| サーフェス `surface`（カード・入力欄） | `#FFFFFF` | `#1C1E25` |
+| サーフェス `surface`（カード・入力欄） | `#FFFDF8` | `#23252E` |
 | 主色 `primary`（インクブルー。ボタン・選択） | `#2B3A8F` | `#A9B6FF` |
 | アクセント `secondary` / `extraColors.accent`（テアル。件数・小さな強調） | `#0F9D8A` | `#5FD6C2` |
 | 本文 `onSurface` | `#1B1C22` | `#E8E8EE` |
@@ -109,7 +109,7 @@ UI 方針: Material3 を土台に、独自のテーマとコンポーネント�
 | エラー `error` | `#C8432F` | `#FF8A78` |
 | 罫線 `outlineVariant` | `#E4E2DB` | `#2E313B` |
 
-- 形（`Dimens.kt` / `Shapes`）: カード 20dp、入力欄 14dp、チップ・検索バー・FAB・ピルボタンは完全な pill。影は付けず、細い罫線（`outlineVariant`）で縁取る。余白は画面左右 20dp、セクション間 24dp、カード内 16dp（`NotebookDimens`）。
+- 形（`Dimens.kt` / `Shapes`）: カード 20dp、入力欄 14dp、チップ・検索バー・FAB・ピルボタンは完全な pill。影は光と影の部品（下記）で付け、細い罫線（`outlineVariant`）で縁取る。余白は画面左右 20dp、セクション間 24dp、カード内 16dp（`NotebookDimens`）。
 - 文字（`Type.kt`）: 見出しは太字で字間を詰め（letterSpacing -0.3sp 前後）、本文は行間を広めに取る。
 
 ### コンポーネント（`ui/components/`）
@@ -124,6 +124,23 @@ UI 方針: Material3 を土台に、独自のテーマとコンポーネント�
 | `EmptyState` | アイコン + 説明文を中央に置く空状態。 |
 | `LargeTitleHeader` | 大きな見出し + サブタイトル。左に戻る等、右にアクションを置ける。 |
 | `NotebookFields` | 入力欄の共通形状（14dp）と配色（`notebookFieldColors` / `notebookBorderlessFieldColors`）。 |
+
+### 光と影（`ui/lighting/`）
+
+画面全体で光源を 1 つ持ち、影はすべて光源と反対向きに落ちる。`LightState`（光源の位置・時間・色トークン）を `rememberLightState(isDark)` で作り、`LocalLightState` で配下へ渡す。
+
+| 部品 | 役割 |
+|---|---|
+| `LightState` / `rememberLightState` / `LocalLightState` | 光源の状態（ライト「窓辺の朝の光」、ダーク「夜の卓上灯」）。時間は `InfiniteTransition` で 3584 秒を循環する |
+| `LightMath` / `LightDraw` | 光源の位置、影のずれ・不透明度、描画枠の計算（純 Kotlin。JVM で検証する） |
+| `AmbientLightBackground` | 画面背面の全面描画（`NotebookApp` が包む） |
+| `softShadow` | 2 層の柔らかい影（接地影と環境影） |
+| `litSurface` | 光源方向に沿った面、縁のベベル、押下のグロー |
+| `glassPanel` | 半透明の板（ボトムバー、編集画面の上部バー） |
+| `GlowFab` | 後光つきの拡張 FAB |
+| `NotebookShaders` | AGSL のシェーダー 5 種（`AMBIENT` / `SURFACE` / `SHADOW` / `GLASS` / `GLOW`）。API 33 以上でのみ使う（`ShaderSupport`） |
+
+仕様・シェーダーの uniform・API 33 未満のフォールバックは [lighting.md](lighting.md) を参照。
 
 既存の `TestTags` 定数と、ボタン等の文言（「保存」「タグを作成」「ノートを追加」「ノートを選ぶ」など）は androidTest が依存するため変更しない。
 

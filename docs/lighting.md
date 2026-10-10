@@ -41,9 +41,9 @@
 
 | 名前 | 役割 | 描画範囲 | uniform（型・個数） |
 |---|---|---|---|
-| `AMBIENT`（ambient） | 全画面の背景。ライトは暖白の光の減衰と窓の光 2 枚（枚幅 0.24W・高さ 0.50H・間隔 0.04W、-28° 回転・0.16 せん断の平行四辺形。窓の内側は暖白へ 11%、外側は 0.12W の範囲に +2% から 0 のハロー）、窓の中だけに 2 層 value noise（W/4 と W/9）の木漏れ日（窓の内側の強さを 0.55〜1.0 倍。周期 112・224 秒で漂う。時刻 0 でも模様が出る）、ダークは上部中央の卓上灯の溜まりと寒色のフィル。ビネット、静的ハッシュの粒状感 | 画面全体 | `iResolution`(float2), `iTime`(float), `uLightPos`(float2, px), `uBaseColor`(float4), `uKeyColor`(float4), `uShadowColor`(float4), `uIntensity`(float), `uGrain`(float), `uDark`(float, 0 or 1) |
+| `AMBIENT`（ambient） | 全画面の背景。① 主光源: `uLightPos` からの減衰 `pool`（ライトは対角線の 0.85 倍、ダークは画面高さの 0.55 倍の溜まり）で、紙色 `uBaseColor` を暖白 `uKeyColor` へ `pool × 0.35 × uIntensity` だけ mix する（ダークは `uKeyColor × pool × 0.20` を加算）。② 窓の外: 窓ガラスの外側（ハローを含む全体）を暖かい影色 `#3A3226` へ 4% 沈める（ライトのみ）。③ 窓の光（ライトのみ）: 窓ガラス 2 枚（枚幅 0.24W・高さ 0.50H・間隔 0.04W。中心 (0.30W, 0.36H) と (0.58W, 0.36H)、-28° 回転・0.16 せん断の平行四辺形、縁のぼかし 0.045W）。内側を朝日の金色 `#FFF1D2` へ `0.75 × 木漏れ日` で mix する。木漏れ日は 2 層 value noise（スケール W/4 と W/9、周期 112 秒と 224 秒で漂う）の積を 0.55〜1.0 に変換したもの。④ ハロー（ライトのみ）: 窓の SDF の外側 0.12W の範囲で、`#FFF1D2` を 0.12 から 0 へ載せる。⑤ ダーク: 下からごく弱い寒色のフィル（`#1E2340` を 5%）。窓と木漏れ日は出さない。⑥ ビネット（ライトは 5〜7%、ダークは四隅へ最大 25%）と、静的ハッシュの粒状感。| 画面全体 | `iResolution`(float2), `iTime`(float), `uLightPos`(float2, px), `uBaseColor`(float4), `uKeyColor`(float4), `uShadowColor`(float4), `uIntensity`(float), `uGrain`(float), `uDark`(float, 0 or 1) |
 | `SURFACE`（surface） | カードの面。角丸 SDF マスク、光源方向に沿った面の色、柔らかなスペキュラ、縁の 1.2px のベベル（SDF の勾配と光源方向の内積で切り替え）、押下点からの放射グロー | 要素 | `iResolution`(float2, 要素サイズ), `uLightPos`(float2, 要素ローカル。要素外可), `uBaseColor`(float4), `uHighlightColor`(float4), `uRimColor`(float4), `uRadius`(float), `uPress`(float, 0..1), `uPressPos`(float2), `uPressColor`(float4), `uDark`(float, 0 or 1), `iTime`(float) |
-| `SHADOW`（shadow） | 柔らかい影。ずらした影の矩形の SDF からの指数減衰。乗算済み。要素本体（ずらす前の矩形）の内側だけを抜く（縁は 1.5px でアンチエイリアス）。本体を抜かないと、ずらした影が本体の直下で透けて二重の縁に見える | 影の描画領域（ぼかし幅ぶん大きく） | `iResolution`(float2), `uRectCenter`(float2), `uRectSize`(float2), `uRadius`(float), `uBlur`(float), `uShadowColor`(float4), `uCasterCenter`(float2, 描画枠の座標), `uCasterSize`(float2), `uCasterRadius`(float) |
+| `SHADOW`（shadow） | 柔らかい影。ずらした影の矩形（`uRectCenter` / `uRectSize`）の SDF から指数減衰させる。乗算済み。要素本体（ずらす前の矩形: `uCasterCenter` / `uCasterSize` / `uCasterRadius`）の内側だけを抜き、縁は 1.5px でアンチエイリアスする。抜く形を**ずらした影の矩形**にすると、本体の直下に影の抜けた帯ができて背景が透け、隙間に見えた（不具合）。そのため抜く形は本体の矩形で持つ。本体を抜かないと、ずらした影が本体の直下で透けて二重の縁に見える。| 影の描画領域（ぼかし幅ぶん大きく） | `iResolution`(float2), `uRectCenter`(float2), `uRectSize`(float2), `uRadius`(float), `uBlur`(float), `uShadowColor`(float4), `uCasterCenter`(float2, 描画枠の座標), `uCasterSize`(float2), `uCasterRadius`(float) |
 | `GLASS`（glass） | 半透明の板（ボトムバー等）。上辺の 1px の光の線を板の上に over 合成、光源側のゆるいグラデーション（4%）、ごく弱いノイズ。背景のぼかしはしない | 要素 | `iResolution`(float2), `uTint`(float4), `uHighlightColor`(float4), `uLightPos`(float2, 要素ローカル), `uRadius`(float), `iTime`(float) |
 | `GLOW`（glow） | FAB や選択要素の後光。形の内側は描かず、外側へ指数減衰。周期 7 秒で ±10% 脈動 | 要素の外側まで広く | `iResolution`(float2), `uRectCenter`(float2), `uRectSize`(float2), `uRadius`(float), `uGlowColor`(float4), `uSpread`(float), `iTime`(float) |
 
@@ -128,6 +128,7 @@ flowchart LR
 | JVM 単体 | `app/src/test/.../ui/lighting/LightComponentMathTest.kt` | 要素ローカルへの変換、影・後光の拡張量、描画枠の大きさと形の中心（ずれあり/なし）、影の本体（caster）の中心（拡張量に依らず要素中心へ戻る。影のずれで動かない）、接地影の不透明度 |
 | JVM 静的検査 | `app/src/test/.../ui/lighting/ShaderSpecLintTest.kt` | 全 `ShaderSpec` について、`half4 main(float2` の存在、uniform の宣言と仕様の双方向の一致、宣言以外での使用、`floatCount` と宣言型の一致、`texture` / `uniform shader` の禁止、波括弧の対応、定数境界の for ループ、名前の重複なし。SHADOW の uniform 一覧（本体の 3 つを含む） |
 | 実機（API 33 以上） | `app/src/androidTest/.../ui/lighting/ShaderCompileTest.kt` | 全シェーダーを `RuntimeShader` でコンパイルし、全 uniform に `floatCount` 個の値を設定できること。失敗メッセージにシェーダー名と uniform 名を含む |
+| 実機（撮影） | `app/src/androidTest/.../ui/screenshot/ScreenshotCaptureTest.kt` | 主要画面をライト/ダークで撮る（§10）。アサーションは画面の目印 testTag の表示だけ |
 
 この環境ではコンパイルできないため、AGSL の文法は CI の実機テストで確かめる。JVM 側の静的検査は、CI より前に uniform の食い違いを検出するためにある。
 
@@ -170,3 +171,13 @@ flowchart LR
 - 状態を伝える注記（型の衝突、必須の警告、エラー）は、状態の色（`tertiaryContainer` / `errorContainer`）を保つため光の面にしていない。
 - ライトのヘッダー行は、カードの白より明るくできない（白が最も明るい）ため、`surfaceVariant` の帯で区別する。
 - 補助文字の色は変えていない。ライトの `TextSubLight` は紙色の上で約 4.65:1、白で約 5.08:1、ダークの `TextSubDark` は約 6.5〜7.3:1で、通常の本文として AA（4.5:1）を満たす。
+
+## 10. 検証方法
+
+シェーダーの見た目は JVM では確かめられない。CI の実機で撮影して確認する。
+
+1. `.github/workflows/ci.yml` の `android-test` job は API 30 と API 34 のエミュレータで走る（matrix）。API 34 は AGSL の描画、API 30 は API 33 未満のフォールバック表示の確認用。
+2. `ScreenshotCaptureTest` が主要画面をライト/ダークで撮る。撮影は `TestStorage` の `screenshots/{画面}_{light|dark}.png` に書き出され、AGP が `app/build/outputs/connected_android_test_additional_output/` へ回収する。
+3. `scripts/publish_screenshots.sh` が PNG を `ci-screenshots` ブランチの `{sha7}/api{level}/{画面}_{light|dark}.png` へ push し、そのコミットのコメントに画像リンクを投稿する。
+4. シェーダーのコンパイルは実機テスト `ShaderCompileTest`（API 33 以上。API 30 では Assume でスキップ）で確かめる。JVM の `ShaderSpecLintTest` は、CI より前に uniform の食い違いを検出する。
+5. CI が失敗したときは、job のコメントに Gradle エラーの行（`scripts/extract_gradle_errors.py` の抜粋）が載る。
