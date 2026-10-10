@@ -10,7 +10,7 @@ class RoutesTest {
     @Test
     fun `ルート定数は設計書どおり`() {
         assertEquals("note_list", Routes.NOTE_LIST)
-        assertEquals("note_edit?noteId={noteId}", Routes.NOTE_EDIT)
+        assertEquals("note_edit?noteId={noteId}&tagId={tagId}", Routes.NOTE_EDIT)
         assertEquals("tag_list", Routes.TAG_LIST)
         assertEquals("tag_edit?tagId={tagId}", Routes.TAG_EDIT)
         assertEquals("tag_table/{tagId}", Routes.TAG_TABLE)
@@ -25,6 +25,18 @@ class RoutesTest {
         assertEquals("tag_edit", Routes.tagEdit(null))
         assertEquals("tag_edit?tagId=t1", Routes.tagEdit(TagId("t1")))
         assertEquals("tag_table/t1", Routes.tagTable(TagId("t1")))
+    }
+
+    @Test
+    fun `ノート新規作成は初期タグを任意でクエリに持つ`() {
+        assertEquals("note_edit?tagId=t1", Routes.noteEdit(null, TagId("t1")))
+        assertEquals("note_edit?noteId=abc&tagId=t1", Routes.noteEdit(NoteId("abc"), TagId("t1")))
+        assertEquals("note_edit?tagId=a%20b", Routes.noteEdit(null, TagId("a b")))
+        assertEquals(
+            Routes.noteEdit(null, TagId("t")),
+            Destination.NoteEdit(null, TagId("t")).route
+        )
+        assertEquals(Destination.NoteEdit(null), Destination.NoteEdit(null, null))
     }
 
     @Test

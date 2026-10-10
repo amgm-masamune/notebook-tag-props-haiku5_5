@@ -213,4 +213,45 @@ class TagTableViewModelTest {
         assertTrue(table!!.columns.isEmpty())
         assertEquals(PropertyName("x"), table.conflicts.single().name)
     }
+
+    @Test
+    fun `ノートを追加はこのタグを初期選択した新規ノート作成へ遷移する`() = runTest {
+        val repos = InMemoryRepositories()
+        repos.seed()
+        val vm = newViewModel(repos)
+        val events = recordEvents(vm.events)
+        advanceUntilIdle()
+
+        vm.onAddNoteClick()
+
+        assertEquals(
+            listOf<UiEvent>(UiEvent.Navigate(Destination.NoteEdit(null, TagId("book")))),
+            events
+        )
+        assertEquals("note_edit?tagId=book", Destination.NoteEdit(null, TagId("book")).route)
+    }
+
+    @Test
+    fun `NoteRefsセルは参照先タイトルのカンマ区切りで取れなければ件数になる`() {
+        val titles = mapOf(NoteId("a") to "Alpha", NoteId("b") to "Beta", NoteId("c") to "")
+        fun refs(vararg ids: String) = PropertyValue.NoteRefs(ids.map { NoteId(it) })
+
+        assertEquals("Alpha, Beta", cellText(refs("a", "b"), titles))
+        assertEquals("(無題)", cellText(refs("c"), titles))
+        assertEquals("Alpha, （削除済み）", cellText(refs("a", "gone"), titles))
+        assertEquals("2 件", cellText(refs("x", "y"), titles))
+        assertEquals("", cellText(PropertyValue.NoteRefs(emptyList()), titles))
+        assertEquals("1200", cellText(PropertyValue.Number(1200.0), titles))
+    }
+
+    @Test
+    fun `noteTitlesに全ノートのタイトルが入る`() = runTest {
+        val repos = InMemoryRepositories()
+        repos.seed()
+        repos.notes.save(noteOf("n9", tags = listOf("other"), title = "別タグ"))
+        val vm = newViewModel(repos)
+        advanceUntilIdle()
+
+        assertEquals("別タグ", vm.uiState.value.noteTitles[NoteId("n9")])
+    }
 }

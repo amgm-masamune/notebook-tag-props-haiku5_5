@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -53,8 +54,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.amgm.notebook.domain.model.NoteId
 import com.amgm.notebook.domain.model.PropertyName
 import com.amgm.notebook.domain.model.PropertyType
+import com.amgm.notebook.domain.model.PropertyValue
 import com.amgm.notebook.domain.model.Tag
 import com.amgm.notebook.domain.model.TagId
 import com.amgm.notebook.domain.rules.ValidationIssue
@@ -71,6 +74,17 @@ fun NoteEditScreen(viewModel: NoteEditViewModel, snackbarHostState: SnackbarHost
         state = state,
         snackbarHostState = snackbarHostState,
         onTitleChange = viewModel::onTitleChange,
+        onAutoSyncChange = viewModel::onAutoSyncTitleH1Change,
+        onCreateTagClick = viewModel::onCreateTagClick,
+        onOpenNotePicker = viewModel::onOpenNotePicker,
+        onRemoveNoteRef = viewModel::onRemoveNoteRef,
+        pickerActions = NotePickerActions(
+            onQueryChange = viewModel::onPickerQueryChange,
+            onFilterChange = viewModel::onPickerFilterChange,
+            onToggle = viewModel::onPickerToggle,
+            onConfirm = viewModel::onPickerConfirm,
+            onDismiss = viewModel::onPickerDismiss
+        ),
         onBodyChange = viewModel::onBodyChange,
         onModeChange = viewModel::onModeChange,
         onTagToggle = viewModel::onTagToggle,
@@ -92,6 +106,11 @@ private fun NoteEditContent(
     state: NoteEditUiState,
     snackbarHostState: SnackbarHostState,
     onTitleChange: (String) -> Unit,
+    onAutoSyncChange: (Boolean) -> Unit,
+    onCreateTagClick: () -> Unit,
+    onOpenNotePicker: (PropertyName) -> Unit,
+    onRemoveNoteRef: (PropertyName, NoteId) -> Unit,
+    pickerActions: NotePickerActions,
     onBodyChange: (String) -> Unit,
     onModeChange: (EditorMode) -> Unit,
     onTagToggle: (TagId) -> Unit,
@@ -166,11 +185,23 @@ private fun NoteEditContent(
                         .fillMaxWidth()
                         .testTag(TestTags.NOTE_EDIT_TITLE)
                 )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "タイトル変更時に最初の見出し（h1）も更新する",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Switch(
+                        checked = state.autoSyncTitleH1,
+                        onCheckedChange = onAutoSyncChange,
+                        modifier = Modifier.testTag(TestTags.NOTE_EDIT_AUTO_SYNC_H1)
+                    )
+                }
 
                 SectionTitle("タグ")
                 if (state.availableTags.isEmpty()) {
                     Text(
-                        "タグがありません。タグ一覧から作成できます",
+                        "タグがありません。下のボタンから作成できます",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -182,6 +213,10 @@ private fun NoteEditContent(
                         onToggle = onTagToggle
                     )
                 }
+                OutlinedButton(
+                    onClick = onCreateTagClick,
+                    modifier = Modifier.testTag(TestTags.NOTE_EDIT_CREATE_TAG)
+                ) { Text("タグを作成") }
                 if (state.selectedTagIds.isNotEmpty()) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         state.availableTags
@@ -210,8 +245,11 @@ private fun NoteEditContent(
                     PropertyRowEditor(
                         row = row,
                         definedByName = (row.origin as? PropertyOrigin.Defined)?.let { tagNames[it.definedBy] },
+                        noteTitles = state.noteTitles,
                         onInputChange = { onPropertyInputChange(row.name, it) },
-                        onRemove = { onRemoveFreeProperty(row.name) }
+                        onRemove = { onRemoveFreeProperty(row.name) },
+                        onOpenNotePicker = { onOpenNotePicker(row.name) },
+                        onRemoveNoteRef = { onRemoveNoteRef(row.name, it) }
                     )
                 }
                 OutlinedButton(
@@ -285,6 +323,15 @@ private fun NoteEditContent(
         )
     }
 
+    val picker = state.picker
+    if (picker != null) {
+        NotePickerSheet(
+            picker = picker,
+            tags = state.availableTags,
+            actions = pickerActions
+        )
+    }
+
     if (state.showDiscardDialog) {
         AlertDialog(
             onDismissRequest = onDiscardDismiss,
@@ -338,8 +385,11 @@ private fun ConflictNotice(issue: ValidationIssue.Conflict, tagNames: Map<TagId,
 private fun PropertyRowEditor(
     row: PropertyRowUi,
     definedByName: String?,
+    noteTitles: Map<NoteId, String>,
     onInputChange: (String) -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    onOpenNotePicker: () -> Unit,
+    onRemoveNoteRef: (NoteId) -> Unit
 ) {
     val tag = TestTags.NOTE_EDIT_PROPERTY_PREFIX + row.name.value
     val labelText = row.name.value + if (row.required) " *" else ""
@@ -356,7 +406,18 @@ private fun PropertyRowEditor(
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
-    if (row.type == PropertyType.Boolean) {
+    if (row.type is PropertyType.NoteLink) {
+        NoteLinkRowEditor(
+            row = row,
+            labelText = labelText,
+            hint = hint,
+            hintColor = if (isError) MaterialTheme.colorScheme.error else hintColor,
+            noteTitles = noteTitles,
+            onOpenNotePicker = onOpenNotePicker,
+            onRemoveNoteRef = onRemoveNoteRef,
+            onRemoveProperty = onRemove
+        )
+    } else if (row.type == PropertyType.Boolean) {
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             modifier = Modifier.fillMaxWidth()
@@ -418,6 +479,90 @@ private fun PropertyRowEditor(
     }
 }
 
+/** NoteLink 型の行。選択済みノートをチップで表示し、× で外せる。ピッカーは「ノートを選ぶ」で開く。 */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun NoteLinkRowEditor(
+    row: PropertyRowUi,
+    labelText: String,
+    hint: String,
+    hintColor: androidx.compose.ui.graphics.Color,
+    noteTitles: Map<NoteId, String>,
+    onOpenNotePicker: () -> Unit,
+    onRemoveNoteRef: (NoteId) -> Unit,
+    onRemoveProperty: () -> Unit
+) {
+    val refs = (row.value as? PropertyValue.NoteRefs)?.ids.orEmpty()
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(TestTags.NOTE_EDIT_PROPERTY_PREFIX + row.name.value)
+    ) {
+        Column(
+            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(labelText, style = MaterialTheme.typography.bodyLarge)
+                    Text(hint, style = MaterialTheme.typography.bodySmall, color = hintColor)
+                }
+                if (row.origin is PropertyOrigin.Free) {
+                    RemoveButton(row, onRemoveProperty)
+                }
+            }
+            if (refs.isNotEmpty()) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    refs.forEach { id ->
+                        val title = noteTitles[id]?.let { it.ifBlank { "(無題)" } } ?: "（削除済み）"
+                        val suffix = row.name.value + "_" + id.value
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = MaterialTheme.shapes.small,
+                            modifier = Modifier.testTag(TestTags.NOTE_EDIT_LINK_CHIP_PREFIX + suffix)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(start = 12.dp)
+                            ) {
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = if (noteTitles[id] == null) {
+                                        MaterialTheme.colorScheme.error
+                                    } else {
+                                        MaterialTheme.colorScheme.onSecondaryContainer
+                                    }
+                                )
+                                IconButton(
+                                    onClick = { onRemoveNoteRef(id) },
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .testTag(TestTags.NOTE_EDIT_LINK_REMOVE_PREFIX + suffix)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "$title を外す",
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            OutlinedButton(
+                onClick = onOpenNotePicker,
+                modifier = Modifier.testTag(TestTags.NOTE_EDIT_LINK_PICK_PREFIX + row.name.value)
+            ) { Text("ノートを選ぶ") }
+        }
+    }
+}
+
 @Composable
 private fun RemoveButton(row: PropertyRowUi, onRemove: () -> Unit) {
     IconButton(
@@ -451,7 +596,7 @@ private fun AddPropertyDialog(
                         .testTag(TestTags.NOTE_EDIT_ADD_PROPERTY_NAME)
                 )
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PropertyInputs.allTypes.forEach { candidate ->
+                    PropertyInputs.selectableTypes.forEach { candidate ->
                         FilterChip(
                             selected = type == candidate,
                             onClick = { type = candidate },

@@ -1,5 +1,6 @@
 package com.amgm.notebook.ui.common
 
+import com.amgm.notebook.domain.model.NoteId
 import com.amgm.notebook.domain.model.PropertyType
 import com.amgm.notebook.domain.model.PropertyValue
 import java.time.LocalDate
@@ -23,6 +24,11 @@ object PropertyInputs {
                 "false" -> PropertyValue.Bool(false)
                 else -> null
             }
+            // 通常はノート選択ピッカーで組み立てる。文字列から来た場合はカンマ区切りの ID として解釈する
+            is PropertyType.NoteLink -> {
+                val ids = input.split(',').map { it.trim() }.filter { it.isNotEmpty() }.map { NoteId(it) }
+                if (ids.isEmpty()) PropertyValue.Empty else PropertyValue.NoteRefs.of(ids)
+            }
             PropertyType.Date -> try {
                 PropertyValue.Date(LocalDate.parse(input.trim()))
             } catch (e: DateTimeParseException) {
@@ -37,6 +43,7 @@ object PropertyInputs {
         is PropertyValue.Number -> formatNumber(value.value)
         is PropertyValue.Bool -> if (value.value) "true" else "false"
         is PropertyValue.Date -> value.value.toString()
+        is PropertyValue.NoteRefs -> value.ids.joinToString(", ") { it.value }
         is PropertyValue.Empty -> ""
     }
 
@@ -55,11 +62,15 @@ object PropertyInputs {
         is PropertyValue.Number -> PropertyType.Number
         is PropertyValue.Bool -> PropertyType.Boolean
         is PropertyValue.Date -> PropertyType.Date
+        is PropertyValue.NoteRefs -> PropertyType.NoteLink(null)
         is PropertyValue.Empty -> PropertyType.Text
     }
 
     val allTypes: List<PropertyType> =
         listOf(PropertyType.Text, PropertyType.Number, PropertyType.Boolean, PropertyType.Date)
+
+    /** プロパティ定義・自由プロパティの追加で選べる型（NoteLink を含む）。 */
+    val selectableTypes: List<PropertyType> = allTypes + PropertyType.NoteLink(null)
 
     /** testTag 等に使う安定キー。 */
     fun key(type: PropertyType): String = when (type) {
@@ -67,6 +78,7 @@ object PropertyInputs {
         PropertyType.Number -> "Number"
         PropertyType.Boolean -> "Boolean"
         PropertyType.Date -> "Date"
+        is PropertyType.NoteLink -> "NoteLink"
     }
 
     fun label(type: PropertyType): String = when (type) {
@@ -74,5 +86,6 @@ object PropertyInputs {
         PropertyType.Number -> "数値"
         PropertyType.Boolean -> "真偽"
         PropertyType.Date -> "日付"
+        is PropertyType.NoteLink -> "ノートリンク"
     }
 }

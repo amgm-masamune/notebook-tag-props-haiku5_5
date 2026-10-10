@@ -35,7 +35,9 @@ data class TagTableUiState(
     val tagFound: Boolean = true,
     val tagName: String = "",
     val table: TableView? = null,
-    val sort: TableSort? = null
+    val sort: TableSort? = null,
+    /** 存在する全ノートの ID→タイトル。NoteRefs セルのタイトル表示用。 */
+    val noteTitles: Map<NoteId, String> = emptyMap()
 )
 
 class TagTableViewModel(
@@ -57,6 +59,12 @@ class TagTableViewModel(
     val events: Flow<UiEvent> = _events.receiveAsFlow()
 
     init {
+        viewModelScope.launch {
+            noteRepository.observeNotes().collect { notes ->
+                val titles = notes.associate { it.id to it.title }
+                _uiState.update { it.copy(noteTitles = titles) }
+            }
+        }
         val snapshots: Flow<Snapshot> = tagRepository.observeTags().flatMapLatest { tags ->
             val byId = tags.associateBy { it.id }
             if (byId[tagId] == null) {
@@ -102,6 +110,9 @@ class TagTableViewModel(
     }
 
     fun onRowClick(noteId: NoteId) = send(UiEvent.Navigate(Destination.NoteEdit(noteId)))
+
+    /** このタグを初期選択した新規ノート作成画面へ遷移する。 */
+    fun onAddNoteClick() = send(UiEvent.Navigate(Destination.NoteEdit(null, tagId)))
 
     fun onEditTagClick() = send(UiEvent.Navigate(Destination.TagEdit(tagId)))
 

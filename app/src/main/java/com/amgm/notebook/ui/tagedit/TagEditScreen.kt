@@ -40,6 +40,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.amgm.notebook.domain.model.PropertyType
+import com.amgm.notebook.domain.model.TagId
 import com.amgm.notebook.ui.TestTags
 import com.amgm.notebook.ui.common.PropertyInputs
 import com.amgm.notebook.ui.common.SelectableTagChips
@@ -161,6 +163,9 @@ fun TagEditScreen(viewModel: TagEditViewModel, snackbarHostState: SnackbarHostSt
                         index = index,
                         count = state.definitions.size,
                         draft = draft,
+                        tagChoices = state.tagNames.entries
+                            .sortedWith(compareBy<Map.Entry<TagId, String>>({ it.value.lowercase() }, { it.key.value }))
+                            .map { it.key to it.value },
                         onChange = { viewModel.onDefinitionChange(index, it) },
                         onRemove = { viewModel.onRemoveDefinition(index) },
                         onMoveUp = { viewModel.onMoveDefinition(index, index - 1) },
@@ -208,6 +213,7 @@ private fun DefinitionEditor(
     index: Int,
     count: Int,
     draft: PropertyDefinitionDraft,
+    tagChoices: List<Pair<TagId, String>>,
     onChange: (PropertyDefinitionDraft) -> Unit,
     onRemove: () -> Unit,
     onMoveUp: () -> Unit,
@@ -237,15 +243,48 @@ private fun DefinitionEditor(
                 ) { Icon(Icons.Default.Close, contentDescription = "定義を削除") }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PropertyInputs.allTypes.forEach { type ->
+                PropertyInputs.selectableTypes.forEach { type ->
                     FilterChip(
-                        selected = draft.type == type,
-                        onClick = { onChange(draft.copy(type = type)) },
+                        selected = PropertyInputs.key(draft.type) == PropertyInputs.key(type),
+                        onClick = {
+                            // 同じ型を再タップしても NoteLink の対象タグ設定を消さない
+                            if (PropertyInputs.key(draft.type) != PropertyInputs.key(type)) {
+                                onChange(draft.copy(type = type))
+                            }
+                        },
                         label = { Text(PropertyInputs.label(type)) },
                         modifier = Modifier.testTag(
                             TestTags.TAG_EDIT_DEFINITION_TYPE_PREFIX + index + "_" + PropertyInputs.key(type)
                         )
                     )
+                }
+            }
+            val linkType = draft.type as? PropertyType.NoteLink
+            if (linkType != null) {
+                Text(
+                    "候補の絞り込み（既定のタグ。編集時に変更可能で、強制はされません）",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = linkType.targetTagId == null,
+                        onClick = { onChange(draft.copy(type = PropertyType.NoteLink(null))) },
+                        label = { Text("指定なし") },
+                        modifier = Modifier.testTag(
+                            TestTags.TAG_EDIT_DEFINITION_LINK_TARGET_PREFIX + index + "_none"
+                        )
+                    )
+                    tagChoices.forEach { (id, name) ->
+                        FilterChip(
+                            selected = linkType.targetTagId == id,
+                            onClick = { onChange(draft.copy(type = PropertyType.NoteLink(id))) },
+                            label = { Text(name) },
+                            modifier = Modifier.testTag(
+                                TestTags.TAG_EDIT_DEFINITION_LINK_TARGET_PREFIX + index + "_" + id.value
+                            )
+                        )
+                    }
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {

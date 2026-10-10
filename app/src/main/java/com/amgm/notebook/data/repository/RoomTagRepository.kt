@@ -5,6 +5,7 @@ import com.amgm.notebook.data.db.NotebookDatabase
 import com.amgm.notebook.data.mapper.toDefinitionEntities
 import com.amgm.notebook.data.mapper.toDomain
 import com.amgm.notebook.data.mapper.toEntity
+import com.amgm.notebook.data.mapper.sanitizeLinkTargets
 import com.amgm.notebook.data.mapper.toParentEntities
 import com.amgm.notebook.domain.model.Tag
 import com.amgm.notebook.domain.model.TagId
@@ -23,16 +24,19 @@ class RoomTagRepository(
         tags.sortedWith(compareBy<Tag>({ it.name.lowercase() }, { it.id.value }))
 
     override fun observeTags(): Flow<List<Tag>> =
-        database.tagDao().observeAll().map { list -> sortByName(list.map { it.toDomain() }) }
+        database.tagDao().observeAll().map { list -> sortByName(sanitizeLinkTargets(list.map { it.toDomain() })) }
 
+    // NoteLink の対象タグ存在確認のため全タグから引く（対象タグの削除にも追従する）
     override fun observeTag(id: TagId): Flow<Tag?> =
-        database.tagDao().observeById(id.value).map { it?.toDomain() }
+        database.tagDao().observeAll().map { list ->
+            sanitizeLinkTargets(list.map { it.toDomain() }).firstOrNull { it.id == id }
+        }
 
     override suspend fun getTag(id: TagId): Tag? =
-        database.tagDao().getById(id.value)?.toDomain()
+        sanitizeLinkTargets(database.tagDao().getAll().map { it.toDomain() }).firstOrNull { it.id == id }
 
     override suspend fun getAllTags(): List<Tag> =
-        sortByName(database.tagDao().getAll().map { it.toDomain() })
+        sortByName(sanitizeLinkTargets(database.tagDao().getAll().map { it.toDomain() }))
 
     override suspend fun save(tag: Tag) {
         database.withTransaction {

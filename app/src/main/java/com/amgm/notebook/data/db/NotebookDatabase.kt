@@ -20,7 +20,7 @@ import com.amgm.notebook.data.db.entity.TagPropertyDefinitionEntity
         TagPropertyDefinitionEntity::class,
         NotePropertyEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 abstract class NotebookDatabase : RoomDatabase() {
@@ -33,11 +33,13 @@ abstract class NotebookDatabase : RoomDatabase() {
         /** 端末内ファイル `notebook.db` に保存するDB。 */
         fun create(context: Context): NotebookDatabase =
             Room.databaseBuilder(context.applicationContext, NotebookDatabase::class.java, DATABASE_NAME)
+                .addMigrations(*NotebookMigrations.ALL)
                 .build()
 
         /** テスト用のインメモリDB。 */
         fun inMemory(context: Context): NotebookDatabase =
             Room.inMemoryDatabaseBuilder(context.applicationContext, NotebookDatabase::class.java)
+                .addMigrations(*NotebookMigrations.ALL)
                 .build()
     }
 }

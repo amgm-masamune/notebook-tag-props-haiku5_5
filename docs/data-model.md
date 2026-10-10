@@ -343,3 +343,13 @@ interface TagRepository {
 例外クラスは `domain/error/DomainExceptions.kt`（すべて `RuntimeException` 継承）: `CyclicInheritanceException(tagId, path: List<TagId>)`, `DuplicateTagNameException(name)`, `TagNotFoundException(tagId)`。
 
 `Note.updatedAt` の更新は ViewModel が `Clock` から設定する（リポジトリは渡された値を保存する）。
+
+## 付録 v2: 追加モデル
+
+- **Note.autoSyncTitleH1: Boolean = true** … 本文の最初の h1 とタイトルを同期するか。`notes.auto_sync_title_h1 INTEGER NOT NULL DEFAULT 1`。同期ロジックは純粋関数 `TitleHeadingSync`（`initialBody` / `syncFirstH1`。"# " 始まりの最初の行のみ対象で `##` とコードブロック内は無視、CRLF/LF 両対応、h1 が無ければ先頭に挿入、空白のみのタイトルでは本文不変）。
+- **PropertyType.NoteLink(targetTagId: TagId?)** … 他ノートへのリンク（複数可）。`type` 列は `NOTE_LINK`、対象タグは `tag_property_definitions.link_target_tag_id TEXT NULL`（外部キーなし。対象タグが存在しなければ読み出し時に null 扱い）。
+- **PropertyValue.NoteRefs(ids: List<NoteId>)** … 順序保持・重複なし（`NoteRefs.of` で重複除去、コンストラクタは重複を拒否）。ID にカンマ不可。`value_type = NOTE_REFS`、`value_text` はカンマ区切りの NoteId（空リストは空文字）。`matches`: NoteLink 型には NoteRefs と Empty のみ一致。
+- **検証** … NoteLink 定義に NoteRefs 以外は `TypeMismatch`（ERROR）、必須未入力は従来どおり `RequiredMissing`（WARNING）。参照先の存在は検査しない。
+- **継承の解決** … 同名で NoteLink 同士は `targetTagId` が違っても衝突としない。子優先で残った定義のうち対象タグを持つ最初のものを採用する。
+- **TagTree** … `flattenTagTree(tags)`（`domain/service/TagTree.kt`）。`TagTreeNode(tag, depth, isAdditionalParentOccurrence)`。
+- **Migration 1 -> 2** … `ALTER TABLE notes ADD COLUMN auto_sync_title_h1 INTEGER NOT NULL DEFAULT 1` と `ALTER TABLE tag_property_definitions ADD COLUMN link_target_tag_id TEXT`。DB version = 2。
