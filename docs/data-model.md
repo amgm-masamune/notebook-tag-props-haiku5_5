@@ -30,9 +30,9 @@ sealed interface PropertyValue {
     data class Number(val value: Double) : PropertyValue    // init { require(value.isFinite()) }
     data class Bool(val value: Boolean) : PropertyValue
     data class Date(val value: java.time.LocalDate) : PropertyValue
-    data object Empty : PropertyValue
+    data object Null : PropertyValue        // 未設定(未入力)。Text("") とは別
 }
-// PropertyValue.matches(type: PropertyType): Boolean   … Empty は常に true(型検証対象外。必須判定は別)
+// PropertyValue.matches(type: PropertyType): Boolean   … Null は常に true(型検証対象外)。Text("") は Text 型に一致
 
 // PropertyDefinition.kt
 data class PropertyDefinition(val name: PropertyName, val type: PropertyType, val required: Boolean)
@@ -57,7 +57,7 @@ data class Note(
 )
 ```
 
-`PropertyType` の永続化名（`type` / `value_type` 列）は `TEXT` / `NUMBER` / `BOOLEAN` / `DATE`、`PropertyValue` は加えて `EMPTY`。
+`PropertyType` の永続化名（`type` / `value_type` 列）は `TEXT` / `NUMBER` / `BOOLEAN` / `DATE`、`PropertyValue` は加えて `NULL`（旧 `EMPTY` は読み込み時に Null 扱い）。
 
 ## 2. クラス図
 
@@ -92,7 +92,7 @@ classDiagram
         Number
         Bool
         Date
-        Empty
+        Null
     }
     class Note {
         +NoteId id
@@ -222,8 +222,8 @@ data class ValidationResult(val issues: List<ValidationIssue>) {
 ```
 
 22. `schema = resolveForTags(note.tagIds)`。
-23. 定義済みプロパティ p について、値が存在し `Empty` でなく、かつ型が一致しない場合は `TypeMismatch`（ERROR）。
-24. 値が存在しない、または `Empty` で `p.required == true` の場合は `RequiredMissing`（WARNING）。
+23. 定義済みプロパティ p について、値が存在し未入力(`Null`/空文字 Text)でなく、かつ型が一致しない場合は `TypeMismatch`（ERROR）。
+24. 値が存在しない、`Null`、または `Text("")` で `p.required == true` の場合は `RequiredMissing`（WARNING）。
 25. 衝突ごとに `Conflict`（WARNING）。
 26. 自由プロパティ（定義のない名前）は型検証しない。
 27. **保存方針（理由付き）**: `NoteRepository` は検証しない（データ層は永続化のみ）。`NoteEditViewModel` が保存前に検証し、**ERROR があれば保存を拒否**し、**WARNING のみなら保存して警告を UI に表示**する。理由: (a) 下書きの途中保存を妨げないため必須未入力は拒否しない、(b) 型不一致は復元時に値を解釈できず壊れたデータになりうるため拒否する、(c) UI は型付き入力欄なので ERROR は「自由プロパティが後から同名の別型定義を持つタグを付けた」場合などに限られる。
@@ -235,7 +235,7 @@ data class ValidationResult(val issues: List<ValidationIssue>) {
 
 ```kotlin
 data class TableColumn(val name: PropertyName, val type: PropertyType, val required: Boolean)
-data class TableRow(val noteId: NoteId, val title: String, val cells: List<PropertyValue>)  // cells は columns と同順・同数。値が無ければ Empty
+data class TableRow(val noteId: NoteId, val title: String, val cells: List<PropertyValue>)  // cells は columns と同順・同数。値が無ければ Null
 data class TableView(val tag: Tag, val columns: List<TableColumn>, val rows: List<TableRow>, val conflicts: List<PropertyConflict>)
 data class TableSort(val column: TableSortKey, val ascending: Boolean)
 sealed interface TableSortKey { data object Title : TableSortKey; data class Property(val name: PropertyName) : TableSortKey }
@@ -247,8 +247,8 @@ class TableViewBuilder {
 
 29. 列 = `resolve(tagId).definitions`（20 の順序）。タイトル列は常に先頭に別枠で表示する（`columns` には含めない）。
 30. 行 = 13 の対象ノート。デフォルト順は `updatedAt` 降順。
-31. セル = `note.properties[col.name]`。型が列の型と不一致なら `Empty` として表示せず、そのまま値を持ち UI 側で警告アイコン（NoteValidator と同じ判定）。
-32. ソート: `Empty` は昇順・降順どちらでも末尾。Text は大文字小文字無視の辞書順、Number は数値、Bool は false < true、Date は日付順。同値は `updatedAt` 降順で安定させる。
+31. セル = `note.properties[col.name]`。型が列の型と不一致でも `Null` として表示せず、そのまま値を持ち UI 側で警告アイコン（NoteValidator と同じ判定）。
+32. ソート: `Null` は昇順・降順どちらでも末尾。`Text("")` は空文字として比較（`Null` と共に表示は空欄）。Text は大文字小文字無視の辞書順、Number は数値、Bool は false < true、Date は日付順。同値は `updatedAt` 降順で安定させる。
 
 ## 5. 永続化: Room スキーマ（data）
 
@@ -293,7 +293,7 @@ erDiagram
     note_properties {
         TEXT note_id PK,FK
         TEXT name PK
-        TEXT value_type "TEXT NUMBER BOOLEAN DATE EMPTY"
+        TEXT value_type "TEXT NUMBER BOOLEAN DATE NULL"
         TEXT value_text "文字列化した値"
     }
 ```
@@ -309,7 +309,7 @@ erDiagram
 | `tag_property_definitions` (`TagPropertyDefinitionEntity`) | (`tag_id`,`name`) | `tags(id)` CASCADE | なし |
 | `note_properties` (`NotePropertyEntity`) | (`note_id`,`name`) | `notes(id)` CASCADE | なし |
 
-33. 値の符号化（`data/mapper/PropertyValueCodec.kt`、純Kotlin）: Text=そのまま / Number=`Double.toString()`（復元は `toDouble()`） / Boolean=`"true"`/`"false"` / Date=`LocalDate.toString()`（ISO-8601、復元は `LocalDate.parse`） / Empty=`""`。`value_type` で復元する。未知の `value_type` や復元失敗は `Empty` にフォールバックする（クラッシュさせない）。
+33. 値の符号化（`data/mapper/PropertyValueCodec.kt`、純Kotlin）: Text=そのまま / Number=`Double.toString()`（復元は `toDouble()`） / Boolean=`"true"`/`"false"` / Date=`LocalDate.toString()`（ISO-8601、復元は `LocalDate.parse`） / Null=`value_type "NULL"`・`value_text ""`（列は NOT NULL のまま。`Text("")` は `TEXT` + `""` で区別）。`value_type` で復元する。未知の `value_type` や復元失敗は `Null` にフォールバックする（クラッシュさせない）。
 34. 日時は `Instant.toEpochMilli()` で保存、`Instant.ofEpochMilli()` で復元。
 35. `tag_parents` に順序列は持たない。親の順序は 8 の名前順で決定的に扱う。
 36. データベース: `NotebookDatabase`（version = 1, `exportSchema = true`, スキーマ出力先 `app/schemas`）、DB ファイル名 `notebook.db`。`PRAGMA foreign_keys=ON` は Room が既定で有効化する。
@@ -348,8 +348,22 @@ interface TagRepository {
 
 - **Note.autoSyncTitleH1: Boolean = true** … 本文の最初の h1 とタイトルを同期するか。`notes.auto_sync_title_h1 INTEGER NOT NULL DEFAULT 1`。同期ロジックは純粋関数 `TitleHeadingSync`（`initialBody` / `syncFirstH1`。"# " 始まりの最初の行のみ対象で `##` とコードブロック内は無視、CRLF/LF 両対応、h1 が無ければ先頭に挿入、空白のみのタイトルでは本文不変）。
 - **PropertyType.NoteLink(targetTagId: TagId?)** … 他ノートへのリンク（複数可）。`type` 列は `NOTE_LINK`、対象タグは `tag_property_definitions.link_target_tag_id TEXT NULL`（外部キーなし。対象タグが存在しなければ読み出し時に null 扱い）。
-- **PropertyValue.NoteRefs(ids: List<NoteId>)** … 順序保持・重複なし（`NoteRefs.of` で重複除去、コンストラクタは重複を拒否）。ID にカンマ不可。`value_type = NOTE_REFS`、`value_text` はカンマ区切りの NoteId（空リストは空文字）。`matches`: NoteLink 型には NoteRefs と Empty のみ一致。
+- **PropertyValue.NoteRefs(ids: List<NoteId>)** … 順序保持・重複なし（`NoteRefs.of` で重複除去、コンストラクタは重複と空リストを拒否）。ID にカンマ不可。`value_type = NOTE_REFS`、`value_text` はカンマ区切りの NoteId。空リストは作れず `PropertyValue.ofNoteRefs(ids)` で `Null` に正規化（保存も Null）。`matches`: NoteLink 型には NoteRefs と Null のみ一致。
 - **検証** … NoteLink 定義に NoteRefs 以外は `TypeMismatch`（ERROR）、必須未入力は従来どおり `RequiredMissing`（WARNING）。参照先の存在は検査しない。
 - **継承の解決** … 同名で NoteLink 同士は `targetTagId` が違っても衝突としない。子優先で残った定義のうち対象タグを持つ最初のものを採用する。
 - **TagTree** … `flattenTagTree(tags)`（`domain/service/TagTree.kt`）。`TagTreeNode(tag, depth, isAdditionalParentOccurrence)`。
 - **Migration 1 -> 2** … `ALTER TABLE notes ADD COLUMN auto_sync_title_h1 INTEGER NOT NULL DEFAULT 1` と `ALTER TABLE tag_property_definitions ADD COLUMN link_target_tag_id TEXT`。DB version = 2。
+
+## 値の状態（null と空文字列）
+
+- 未設定 = `PropertyValue.Null`。タグを付けただけのプロパティ値はこの状態（`NotePropertyRules.onTagsAdded`）。
+- 編集して内容が空になった文字列型の値 = `PropertyValue.Text("")`。`Null` とは別の状態で、永続化でも `NULL` / `TEXT`+`""` として区別する。
+- `Null` と `Text("")` はどちらも「未入力」: 必須判定は `RequiredMissing`、表ビューは空欄表示（`PropertyValue.isUnset`）。ソートでは `Null` が昇順・降順とも末尾、`Text("")` は空文字として比較する。
+- `NoteLink` の空は `Null`（`NoteRefs` は非空のみ。`PropertyValue.ofNoteRefs(ids)` が空を `Null` に正規化）。
+
+## タグ取り外し時の規則
+
+`domain/rules/NotePropertyRules.kt`:
+
+- `onTagsAdded(note, allTagsAfter, addedTagIds)`: 追加タグの実効定義のうち `note.properties` に無い名前を `Null` で追加。既存値は変更しない。
+- `onTagsRemoved(properties, remainingTagIds, removedTagIds, allTags)`: `allTags` は取り外し前を含む。取り外し前の実効定義（残り+外す）にあり、残りの実効定義（衝突中の名前を含む）に無い名前が対象。対象のうち値が `Null` は削除、それ以外（`Text("")` を含む文字列・Number/Boolean/Date/NoteRefs の非 null 値）は自由プロパティとして残す。残ったタグが定義する名前（多段継承で親が残る場合を含む）と、元からの自由プロパティは変更しない。

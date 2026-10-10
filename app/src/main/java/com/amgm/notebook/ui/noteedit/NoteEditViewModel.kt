@@ -15,6 +15,8 @@ import com.amgm.notebook.domain.repository.TagRepository
 import com.amgm.notebook.domain.rules.EffectivePropertyResolver
 import com.amgm.notebook.domain.rules.TagHierarchy
 import com.amgm.notebook.domain.rules.TitleHeadingSync
+import com.amgm.notebook.domain.rules.onTagsAdded
+import com.amgm.notebook.domain.rules.onTagsRemoved
 import com.amgm.notebook.domain.rules.Severity
 import com.amgm.notebook.domain.rules.ValidationIssue
 import com.amgm.notebook.domain.rules.NoteValidator
@@ -255,16 +257,46 @@ class NoteEditViewModel(
     fun onTagToggle(tagId: TagId) {
         _uiState.update { s ->
             if (tagId !in s.selectedTagIds && tagId !in allTags) return@update s
-            val selected = if (tagId in s.selectedTagIds) s.selectedTagIds - tagId else s.selectedTagIds + tagId
+            val selected: Set<TagId>
+            val rows: List<PropertyRowUi>
+            if (tagId in s.selectedTagIds) {
+                // 外す: 値が Null の項目は消え、値のある項目は自由プロパティとして残る
+                selected = s.selectedTagIds - tagId
+                val kept = onTagsRemoved(currentProperties(s), selected, setOf(tagId), allTags)
+                rows = rebuildRows(selected, s.propertyRows.filter { it.name in kept.keys })
+            } else {
+                // 付ける: 追加されたタグの項目を Null（未入力）で入れる。既存値は変えない
+                selected = s.selectedTagIds + tagId
+                val props = onTagsAdded(draftNote(s), allTags, setOf(tagId))
+                val rebuilt = rebuildRows(selected, s.propertyRows)
+                val existing = s.propertyRows.map { it.name }.toSet()
+                rows = rebuilt.map { row ->
+                    if (row.name !in existing) row.copy(value = props[row.name] ?: PropertyValue.Null) else row
+                }
+            }
             validated(
                 s.copy(
                     selectedTagIds = selected,
-                    propertyRows = rebuildRows(selected, s.propertyRows),
+                    propertyRows = rows,
                     isDirty = true
                 )
             )
         }
     }
+
+    private fun currentProperties(state: NoteEditUiState): Map<PropertyName, PropertyValue> =
+        state.propertyRows.associate { it.name to it.value }
+
+    private fun draftNote(state: NoteEditUiState): Note =
+        Note(
+            id = currentId ?: NoteId(DRAFT_ID),
+            title = state.title,
+            body = state.body,
+            tagIds = state.selectedTagIds,
+            properties = currentProperties(state),
+            createdAt = Instant.EPOCH,
+            updatedAt = Instant.EPOCH
+        )
 
     fun onPropertyInputChange(name: PropertyName, input: String) {
         _uiState.update { s ->
@@ -273,7 +305,7 @@ class NoteEditViewModel(
                 if (row.name != name) {
                     row
                 } else {
-                    row.copy(input = input, value = PropertyInputs.parse(row.type, input) ?: PropertyValue.Empty)
+                    row.copy(input = input, value = PropertyInputs.parse(row.type, input) ?: PropertyValue.Null)
                 }
             }
             validated(s.copy(propertyRows = rows, isDirty = true))
@@ -293,7 +325,7 @@ class NoteEditViewModel(
             origin = PropertyOrigin.Free,
             required = false,
             input = "",
-            value = PropertyValue.Empty,
+            value = PropertyValue.Null,
             error = null
         )
         _uiState.update { s ->
@@ -360,7 +392,7 @@ class NoteEditViewModel(
             val target = s.propertyRows.firstOrNull { it.name == name }
             if (target == null || target.type !is PropertyType.NoteLink) return@update s
             val value: PropertyValue =
-                if (ids.isEmpty()) PropertyValue.Empty else PropertyValue.NoteRefs.of(ids)
+                if (ids.isEmpty()) PropertyValue.Null else PropertyValue.NoteRefs.of(ids)
             val rows = s.propertyRows.map { row ->
                 if (row.name == name) row.copy(value = value, input = PropertyInputs.toInput(value)) else row
             }
@@ -471,7 +503,7 @@ class NoteEditViewModel(
                 origin = PropertyOrigin.Defined(effective.definedBy),
                 required = definition.required,
                 input = prev?.input ?: "",
-                value = if (prev == null) PropertyValue.Empty else carryValue(definition.type, prev),
+                value = if (prev == null) PropertyValue.Null else carryValue(definition.type, prev),
                 error = null
             )
         }
@@ -490,26 +522,27 @@ class NoteEditViewModel(
         return defined + free
     }
 
-    /** 値が既にあればそのまま、空なら入力文字列を新しい型で解釈し直す。 */
-    private fun carryValue(type: PropertyType, row: PropertyRowUi): PropertyValue =
-        if (row.value !is PropertyValue.Empty) row.value
-        else PropertyInputs.parse(type, row.input) ?: PropertyValue.Empty
+    /**
+     * 値が既にあればそのまま（型違いの `Text("")` は Null 扱い）。Null で入力が空なら Null のまま、
+     * 入力があれば新しい型で解釈し直す。
+     */
+    private fun carryValue(type: PropertyType, row: PropertyRowUi): PropertyValue {
+        val value = row.value
+        return when {
+            value is PropertyValue.Text && value.value.isEmpty() && type != PropertyType.Text -> PropertyValue.Null
+            value !is PropertyValue.Null -> value
+            row.input.isEmpty() -> PropertyValue.Null
+            else -> PropertyInputs.parse(type, row.input) ?: PropertyValue.Null
+        }
+    }
 
     /** issues と各行の error を最新の状態から再計算する。 */
     private fun validated(state: NoteEditUiState): NoteEditUiState {
         val schema = resolver().resolveForTags(state.selectedTagIds)
-        val draft = Note(
-            id = currentId ?: NoteId(DRAFT_ID),
-            title = state.title,
-            body = state.body,
-            tagIds = state.selectedTagIds,
-            properties = state.propertyRows.associate { it.name to it.value },
-            createdAt = Instant.EPOCH,
-            updatedAt = Instant.EPOCH
-        )
+        val draft = draftNote(state)
         val issues = validator.validate(draft, schema).issues
         val rows = state.propertyRows.map { row ->
-            val unparsable = row.input.isNotBlank() && row.value is PropertyValue.Empty
+            val unparsable = row.input.isNotBlank() && row.value is PropertyValue.Null
             val error = when {
                 unparsable -> PropertyInputError.Unparsable
                 row.origin !is PropertyOrigin.Defined -> null

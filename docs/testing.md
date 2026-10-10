@@ -30,10 +30,10 @@
 | `T/domain/model/ModelTest.kt` | ID の空文字拒否、`PropertyName` の trim 検証、`PropertyValue.Number` が非有限値を拒否、`matches(type)` |
 | `T/domain/rules/TagHierarchyTest.kt` | 祖先/子孫、`isSubtypeOf`、ダイヤモンド継承、線形化順（名前順、祖先が先）、`wouldCreateCycle`（自己参照・間接循環）、`isInstanceOf`（自タグ/子孫タグ/無関係） |
 | `T/domain/rules/EffectivePropertyResolverTest.kt` | data-model.md 3.4 の全ルール 14〜21: 継承収集、子の型上書き、位置保持、同型多重継承の統合(required OR)、異型多重継承の `PropertyConflict`、子による衝突解消、`resolveForTags` の複数タグ、定義順 |
-| `T/domain/rules/NoteValidatorTest.kt` | TypeMismatch(ERROR)、RequiredMissing(WARNING)、Empty の扱い、自由プロパティは検証なし、Conflict(WARNING)、`hasErrors` |
-| `T/domain/service/TableViewBuilderTest.kt` | 列=実効定義順、行=自タグ+子孫タグのノート、無関係タグ除外、複数タグ持ちノート、ソート（Empty末尾・型別比較・同値の安定性）、衝突の伝搬 |
+| `T/domain/rules/NoteValidatorTest.kt` | TypeMismatch(ERROR)、RequiredMissing(WARNING)、Null/空文字 Text の扱い、自由プロパティは検証なし、Conflict(WARNING)、`hasErrors` |
+| `T/domain/service/TableViewBuilderTest.kt` | 列=実効定義順、行=自タグ+子孫タグのノート、無関係タグ除外、複数タグ持ちノート、ソート（Null末尾・型別比較・同値の安定性）、衝突の伝搬 |
 | `T/markdown/MarkdownParserTest.kt` | 見出し1〜3と4以上、段落と LineBreak、太字/斜体/コード/ネスト、閉じ忘れ記号のリテラル化、エスケープ、コードブロック（言語・閉じ忘れ）、箇条書き、番号付き(開始番号)、引用(再帰)、水平線、非対応記法（リンク/画像/テーブル）が Text になること、任意入力で例外が出ないこと（ランダム/境界入力） |
-| `T/data/mapper/PropertyValueCodecTest.kt` | 各型の往復（Double の境界、閏日、空文字 Text と Empty の区別）、未知 `value_type` と不正文字列が Empty になる |
+| `T/data/mapper/PropertyValueCodecTest.kt` | 各型の往復（Double の境界、閏日、空文字 Text と Null の区別）、未知 `value_type` と不正文字列が Null になる |
 | `T/ui/navigation/RoutesTest.kt` | `Routes.noteEdit(null/id)`、`Destination.route` が `Routes` 定数と整合、引数の取り出しキー |
 
 ### 3.2 (b) ViewModel シナリオテスト

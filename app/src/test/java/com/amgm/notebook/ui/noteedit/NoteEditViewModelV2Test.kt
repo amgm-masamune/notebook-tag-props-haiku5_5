@@ -283,7 +283,7 @@ class NoteEditViewModelV2Test {
         vm.onPickerDismiss()
 
         assertNull(vm.uiState.value.picker)
-        assertEquals(PropertyValue.Empty, vm.uiState.value.row(related).value)
+        assertEquals(PropertyValue.Null, vm.uiState.value.row(related).value)
     }
 
     @Test
@@ -303,7 +303,7 @@ class NoteEditViewModelV2Test {
         assertEquals(PropertyValue.NoteRefs(listOf(NoteId("n3"))), vm.uiState.value.row(related).value)
 
         vm.onRemoveNoteRef(related, NoteId("n3"))
-        assertEquals(PropertyValue.Empty, vm.uiState.value.row(related).value)
+        assertEquals(PropertyValue.Null, vm.uiState.value.row(related).value)
         assertEquals("", vm.uiState.value.row(related).input)
     }
 

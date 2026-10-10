@@ -8,13 +8,17 @@ import java.time.LocalDate
 
 /**
  * [PropertyValue] / [PropertyType] と DB 列（文字列）の相互変換。純Kotlin。
- * 復元に失敗した値は例外にせず [PropertyValue.Empty] へフォールバックする。
+ * 復元に失敗した値は例外にせず [PropertyValue.Null] へフォールバックする。
  */
 object PropertyValueCodec {
     const val TYPE_TEXT = "TEXT"
     const val TYPE_NUMBER = "NUMBER"
     const val TYPE_BOOLEAN = "BOOLEAN"
     const val TYPE_DATE = "DATE"
+    /** 未設定（Null）。`value_text` は "" 固定（列は NOT NULL のまま）。 */
+    const val TYPE_NULL = "NULL"
+
+    /** 旧バージョンが書いた Empty。読み込み時は Null として扱う。 */
     const val TYPE_EMPTY = "EMPTY"
 
     /** 定義 `type` 列: ノートリンク。対象タグは別列 `link_target_tag_id`。 */
@@ -53,7 +57,7 @@ object PropertyValueCodec {
         is PropertyValue.Bool -> TYPE_BOOLEAN
         is PropertyValue.Date -> TYPE_DATE
         is PropertyValue.NoteRefs -> TYPE_NOTE_REFS
-        is PropertyValue.Empty -> TYPE_EMPTY
+        is PropertyValue.Null -> TYPE_NULL
     }
 
     /** `value_text` 列の文字列。 */
@@ -66,32 +70,33 @@ object PropertyValueCodec {
             require(value.ids.none { it.value.contains(',') }) { "NoteId にカンマは使えません" }
             value.ids.joinToString(",") { it.value }
         }
-        is PropertyValue.Empty -> ""
+        is PropertyValue.Null -> ""
     }
 
     /** (value_type, value_text) の組へ符号化。 */
     fun encode(value: PropertyValue): Pair<String, String> = valueTypeName(value) to valueText(value)
 
-    /** (value_type, value_text) から復元。未知の型や不正な文字列は Empty。 */
+    /** (value_type, value_text) から復元。未知の型や不正な文字列は Null。NULL / 旧 EMPTY は Null、TEXT+"" は Text("")。 */
     fun decode(valueType: String, valueText: String): PropertyValue = try {
         when (valueType) {
             TYPE_TEXT -> PropertyValue.Text(valueText)
             TYPE_NUMBER -> {
                 val number = valueText.toDouble()
-                if (number.isFinite()) PropertyValue.Number(number) else PropertyValue.Empty
+                if (number.isFinite()) PropertyValue.Number(number) else PropertyValue.Null
             }
             TYPE_BOOLEAN -> when (valueText) {
                 "true" -> PropertyValue.Bool(true)
                 "false" -> PropertyValue.Bool(false)
-                else -> PropertyValue.Empty
+                else -> PropertyValue.Null
             }
             TYPE_DATE -> PropertyValue.Date(LocalDate.parse(valueText))
-            TYPE_NOTE_REFS -> PropertyValue.NoteRefs.of(
+            TYPE_NOTE_REFS -> PropertyValue.ofNoteRefs(
                 valueText.split(',').filter { it.isNotBlank() }.map { NoteId(it) }
             )
-            else -> PropertyValue.Empty
+            TYPE_NULL, TYPE_EMPTY -> PropertyValue.Null
+            else -> PropertyValue.Null
         }
     } catch (e: RuntimeException) {
-        PropertyValue.Empty
+        PropertyValue.Null
     }
 }

@@ -106,7 +106,8 @@ class NoteEditViewModelTest {
         vm.onPropertyInputChange(PropertyName("price"), "1200")
         vm.onTagToggle(TagId("book"))
         s = vm.uiState.value
-        assertEquals(listOf("author", "price"), s.propertyRows.map { it.name.value })
+        // 値が Null の author は消え、値のある price だけが自由プロパティとして残る
+        assertEquals(listOf("price"), s.propertyRows.map { it.name.value })
         assertTrue(s.propertyRows.all { it.origin == PropertyOrigin.Free })
         assertEquals(PropertyValue.Number(1200.0), s.row("price").value)
         assertNull(s.row("price").error)
@@ -152,7 +153,7 @@ class NoteEditViewModelTest {
         vm.onPropertyInputChange(PropertyName("n"), "abc")
         vm.onPropertyInputChange(PropertyName("d"), "2024-13-01")
         s = vm.uiState.value
-        assertEquals(PropertyValue.Empty, s.row("n").value)
+        assertEquals(PropertyValue.Null, s.row("n").value)
         assertEquals("abc", s.row("n").input)
         assertEquals(PropertyInputError.Unparsable, s.row("n").error)
         assertEquals(PropertyInputError.Unparsable, s.row("d").error)
@@ -200,7 +201,7 @@ class NoteEditViewModelTest {
         val saved = repos.notes.snapshot.values.single()
         assertEquals("無題の本", saved.title)
         assertEquals(setOf(TagId("book")), saved.tagIds)
-        assertEquals(PropertyValue.Empty, saved.properties[PropertyName("price")])
+        assertEquals(PropertyValue.Null, saved.properties[PropertyName("price")])
         assertFalse(vm.uiState.value.isDirty)
     }
 
@@ -432,5 +433,87 @@ class NoteEditViewModelTest {
         assertEquals(PropertyType.Text, s.row("memo").type)
         assertNotNull(s.row("author"))
         assertFalse(s.isDirty)
+    }
+
+    // ---- v3: 未入力(Null) と 空文字(Text("")) の区別 -----------------------------
+
+    @Test
+    fun `タグを付けると追加された項目がNullで入り既存値は変わらない`() = runTest {
+        val repos = InMemoryRepositories()
+        repos.seedBookTags()
+        val vm = createViewModel(repos)
+        vm.onAddFreeProperty("author", PropertyType.Text)
+        vm.onPropertyInputChange(PropertyName("author"), "夏目漱石")
+
+        vm.onTagToggle(TagId("book"))
+
+        val s = vm.uiState.value
+        assertEquals(PropertyValue.Null, s.row("price").value)
+        assertEquals(PropertyValue.Text("夏目漱石"), s.row("author").value)
+        assertEquals(PropertyOrigin.Defined(TagId("book")), s.row("author").origin)
+    }
+
+    @Test
+    fun `タグを外すとNullは消えTextの空文字は自由プロパティとして残る`() = runTest {
+        val repos = InMemoryRepositories()
+        repos.seedBookTags()
+        val vm = createViewModel(repos)
+        vm.onTagToggle(TagId("book"))
+        // author: 入力して消す -> Text("")、price: 未入力のまま -> Null
+        vm.onPropertyInputChange(PropertyName("author"), "a")
+        vm.onPropertyInputChange(PropertyName("author"), "")
+        assertEquals(PropertyValue.Text(""), vm.uiState.value.row("author").value)
+        assertEquals(PropertyValue.Null, vm.uiState.value.row("price").value)
+
+        vm.onTagToggle(TagId("book"))
+
+        val s = vm.uiState.value
+        assertEquals(listOf("author"), s.propertyRows.map { it.name.value })
+        assertEquals(PropertyValue.Text(""), s.row("author").value)
+        assertEquals(PropertyOrigin.Free, s.row("author").origin)
+    }
+
+    @Test
+    fun `文字列の空入力はTextの空文字で空白もTextとして保持される`() = runTest {
+        val repos = InMemoryRepositories()
+        repos.seedBookTags()
+        val vm = createViewModel(repos)
+        vm.onTagToggle(TagId("book"))
+
+        vm.onPropertyInputChange(PropertyName("author"), "")
+        assertEquals(PropertyValue.Text(""), vm.uiState.value.row("author").value)
+        assertNull(vm.uiState.value.row("author").error)
+
+        vm.onPropertyInputChange(PropertyName("author"), "  ")
+        assertEquals(PropertyValue.Text("  "), vm.uiState.value.row("author").value)
+    }
+
+    @Test
+    fun `数値の空入力はNullになる`() = runTest {
+        val repos = InMemoryRepositories()
+        repos.seedBookTags()
+        val vm = createViewModel(repos)
+        vm.onTagToggle(TagId("book"))
+
+        vm.onPropertyInputChange(PropertyName("price"), "100")
+        assertEquals(PropertyValue.Number(100.0), vm.uiState.value.row("price").value)
+        vm.onPropertyInputChange(PropertyName("price"), "")
+        assertEquals(PropertyValue.Null, vm.uiState.value.row("price").value)
+        assertNull(vm.uiState.value.row("price").error.takeIf { it == PropertyInputError.Unparsable })
+    }
+
+    @Test
+    fun `必須の文字列項目はTextの空文字でも未入力警告になる`() = runTest {
+        val repos = InMemoryRepositories()
+        repos.tags.save(tagOf("t", defs = listOf(defOf("memo", PropertyType.Text, required = true))))
+        val vm = createViewModel(repos)
+        vm.onTagToggle(TagId("t"))
+        vm.onPropertyInputChange(PropertyName("memo"), "x")
+        assertNull(vm.uiState.value.row("memo").error)
+
+        vm.onPropertyInputChange(PropertyName("memo"), "")
+
+        assertEquals(PropertyValue.Text(""), vm.uiState.value.row("memo").value)
+        assertEquals(PropertyInputError.RequiredMissing, vm.uiState.value.row("memo").error)
     }
 }

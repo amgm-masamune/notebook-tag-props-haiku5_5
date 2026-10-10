@@ -67,14 +67,16 @@ app/src/main/res/values/strings.xml, themes.xml, ...
 <M>/ui/NotebookApp.kt                       @Composable fun NotebookApp(container: AppContainer)
 <M>/ui/TestTags.kt
 <M>/ui/common/UiEvent.kt  UiMessage.kt  ViewModelFactories.kt  PropertyInputs.kt  TagChips.kt
-<M>/ui/navigation/Routes.kt  Destination.kt  NotebookNavHost.kt
-<M>/ui/theme/Theme.kt  Color.kt  Type.kt
+<M>/ui/navigation/Routes.kt  Destination.kt  NotebookNavHost.kt  NotebookBottomBar.kt
+<M>/ui/theme/Theme.kt  Color.kt  Type.kt  Dimens.kt
+<M>/ui/components/NotebookCard.kt  TagChip.kt  TagPalette.kt  PillSearchField.kt  SectionHeader.kt  EmptyState.kt  LargeTitleHeader.kt  NotebookFields.kt
 <M>/ui/markdown/MarkdownView.kt             MarkdownDocument を Compose で描画
 <M>/ui/notelist/NoteListScreen.kt  NoteListViewModel.kt
 <M>/ui/noteedit/NoteEditScreen.kt  NotePickerSheet.kt  NoteEditViewModel.kt
 <M>/ui/taglist/TagListScreen.kt  TagListViewModel.kt
 <M>/ui/tagedit/TagEditScreen.kt  TagEditViewModel.kt
 <M>/ui/tagtable/TagTableScreen.kt  TagTableViewModel.kt
+<M>/ui/tableindex/TableIndexScreen.kt  TableIndexViewModel.kt   v3: 「表」タブ
 ```
 
 テスト配置は [testing.md](testing.md) 3 章。
@@ -87,9 +89,43 @@ app/src/main/res/values/strings.xml, themes.xml, ...
 | ノート編集 | `NoteEditScreen` (+ `NotePickerSheet`) | `NoteEditViewModel` | タイトル、h1 自動同期トグル、タグ選択チップと「タグを作成」、プロパティ編集（NoteLink はノートピッカー）、本文の編集/プレビュー切替。 |
 | タグ一覧 | `TagListScreen` | `TagListViewModel` | タグを親子関係でネスト表示（`flattenTagTree`）、親タグ名・定義数、新規/編集/削除、表ビューへ。 |
 | タグ編集 | `TagEditScreen` | `TagEditViewModel` | 名前、親タグ複数選択、プロパティ定義編集（追加・型・必須・並べ替え・削除）、継承定義の読み取り表示。 |
+| 表（v3） | `TableIndexScreen` | `TableIndexViewModel` | 全タグのフラット一覧（名前・ノート件数＝子孫タグ含む）。タップでそのタグの表ビューへ。 |
 | タグ別表ビュー | `TagTableScreen` | `TagTableViewModel` | タグ T の一員を表形式で一覧。列ソート。行タップでノート編集。FAB「ノートを追加」で T を初期選択した新規ノートへ。 |
 
-UI 方針: Material3 (`Scaffold`, `TopAppBar`, `FloatingActionButton`, `FilterChip`/`InputChip`, `OutlinedTextField`, `SegmentedButton` で編集/プレビュー切替, `AlertDialog`)。`Theme.kt` は Android 12 (API 31) 以上で `dynamicLightColorScheme` / `dynamicDarkColorScheme`、未満は `Color.kt` の固定配色。ダークは `isSystemInDarkTheme()` に追従。edge-to-edge 有効。表ビューは横スクロール可能で、タイトル列を固定表示する。
+UI 方針: Material3 を土台に、独自のテーマとコンポーネントで既定の見た目から離す（コンセプト「静かな紙面と、インクの色」）。各画面は `TopAppBar` を使わず、画面上部の `LargeTitleHeader`（編集画面は戻る/保存だけの軽いバー）を使う。`Theme.kt` はダイナミックカラーを使わず、`Color.kt` の固定配色で ColorScheme を明示構築する。ダークは `isSystemInDarkTheme()` に追従。edge-to-edge 有効。表ビューは横スクロール可能で、タイトル列とヘッダ行を固定表示する。画面遷移（`NavHost`）は fade + 小さなスライド。
+
+### テーマ（`ui/theme/`）
+
+- 色トークンは `Color.kt` にのみ定義し、`Theme.kt` でライト/ダークの ColorScheme を構築する。Material に無い色は `MaterialTheme.extraColors`（`accent` / `accentContainer` / `onAccentContainer` / `rowAlt` / `isDark`）で参照する。
+
+| 役割 | ライト | ダーク |
+|---|---|---|
+| 背景（紙色） `background` | `#F6F5F1` | `#121317` |
+| サーフェス `surface`（カード・入力欄） | `#FFFFFF` | `#1C1E25` |
+| 主色 `primary`（インクブルー。ボタン・選択） | `#2B3A8F` | `#A9B6FF` |
+| アクセント `secondary` / `extraColors.accent`（テアル。件数・小さな強調） | `#0F9D8A` | `#5FD6C2` |
+| 本文 `onSurface` | `#1B1C22` | `#E8E8EE` |
+| 補助 `onSurfaceVariant` | `#6B6E7A` | `#9FA2AF` |
+| エラー `error` | `#C8432F` | `#FF8A78` |
+| 罫線 `outlineVariant` | `#E4E2DB` | `#2E313B` |
+
+- 形（`Dimens.kt` / `Shapes`）: カード 20dp、入力欄 14dp、チップ・検索バー・FAB・ピルボタンは完全な pill。影は付けず、細い罫線（`outlineVariant`）で縁取る。余白は画面左右 20dp、セクション間 24dp、カード内 16dp（`NotebookDimens`）。
+- 文字（`Type.kt`）: 見出しは太字で字間を詰め（letterSpacing -0.3sp 前後）、本文は行間を広めに取る。
+
+### コンポーネント（`ui/components/`）
+
+| コンポーネント | 役割 |
+|---|---|
+| `NotebookCard` | 角丸 20dp のサーフェスカード。`onClick` 指定時は押下で微かに縮む。 |
+| `TagChip` | タグ色の淡い背景のチップ。選択状態は主色の塗り。`onClick` が null なら表示専用。testTag は `modifier` で渡す。 |
+| `TagPalette` / `rememberTagColor` | タグ名のハッシュで決まる 8 色（彩度を抑えたパステル、ダーク用あり）。`neutralTagColor()` は中立色。 |
+| `PillSearchField` | 検索用の pill 型入力（クリアボタン付き）。 |
+| `SectionHeader` | 小さな大文字ラベル + 右に任意のアクション。 |
+| `EmptyState` | アイコン + 説明文を中央に置く空状態。 |
+| `LargeTitleHeader` | 大きな見出し + サブタイトル。左に戻る等、右にアクションを置ける。 |
+| `NotebookFields` | 入力欄の共通形状（14dp）と配色（`notebookFieldColors` / `notebookBorderlessFieldColors`）。 |
+
+既存の `TestTags` 定数と、ボタン等の文言（「保存」「タグを作成」「ノートを追加」「ノートを選ぶ」など）は androidTest が依存するため変更しない。
 
 ## 4. ナビゲーション
 
@@ -102,6 +138,9 @@ UI 方針: Material3 (`Scaffold`, `TopAppBar`, `FloatingActionButton`, `FilterCh
 | `Routes.TAG_LIST` | `tag_list` | なし |
 | `Routes.TAG_EDIT` | `tag_edit?tagId={tagId}` | `tagId`: String, nullable, default null（null=新規） |
 | `Routes.TAG_TABLE` | `tag_table/{tagId}` | `tagId`: String（必須） |
+| `Routes.TABLES` | `tables`（v3） | なし |
+
+`Routes.TOP_LEVEL = [note_list, tag_list, tables]`（ボトムバーを表示するトップレベル）。
 
 引数キー定数: `Routes.ARG_NOTE_ID = "noteId"`, `Routes.ARG_TAG_ID = "tagId"`。ルート生成関数: `Routes.noteEdit(id: NoteId?, initialTagId: TagId? = null)`, `Routes.tagEdit(id: TagId?)`, `Routes.tagTable(id: TagId)`。
 
@@ -115,6 +154,7 @@ sealed interface Destination {
     data object TagList : Destination
     data class TagEdit(val tagId: TagId?) : Destination
     data class TagTable(val tagId: TagId) : Destination
+    data object TableIndex : Destination        // v3: route = Routes.TABLES
 }
 ```
 
@@ -156,6 +196,13 @@ flowchart TD
     TT -->|編集アイコン| TE
     TT -->|戻る| TL
 ```
+
+### ボトムナビゲーション（v3）
+
+- `NotebookApp` が `NavController` を持ち、外側の `Scaffold.bottomBar` に `NotebookBottomBar`（`NavigationBar`、タブ「ノート」`note_list` / 「タグ」`tag_list` / 「表」`tables`）を置く。`NotebookNavHost(container, navController, modifier)` は本体のみ。
+- 表示条件は現在のルートが `Routes.TOP_LEVEL` のとき（`isTopLevelRoute`）。ノート編集・タグ編集・表ビューでは非表示で、戻る操作は従来どおり。
+- タブ切替は `navigate(route) { popUpTo(startDestination) { saveState = true }; launchSingleTop = true; restoreState = true }`。各タブの ViewModel・スクロール位置は復元される。ノート一覧の「タグ」ボタンなど既存の `UiEvent.Navigate` は従来の通常遷移。
+- 外側 Scaffold はウィンドウインセットを消費せず（`WindowInsets(0)`）、下余白のみを NavHost に渡して `consumeWindowInsets` する。各画面の Scaffold がインセットを処理する。
 
 注: 戻りは常に `popBackStack`（バックスタックの直前画面に戻る）。上図の戻り先は典型経路を示す。
 
@@ -210,15 +257,15 @@ flowchart TD
 | `showDiscardDialog` | `Boolean` | 未保存で戻ろうとした時の確認 |
 | `notFound` | `Boolean` | 指定IDが存在しない |
 
-`PropertyRowUi(name: PropertyName, type: PropertyType, origin: PropertyOrigin, required: Boolean, input: String, value: PropertyValue, error: PropertyInputError?)`。`PropertyOrigin = Defined(definedBy: TagId) | Free`。`input` は入力欄の生文字列（Number/Date の編集中状態を保持）。`value` は `input` を型に従い解釈した結果で、解釈不能なら `Empty` かつ `error = Unparsable`。`PropertyInputError = Unparsable | TypeMismatch | RequiredMissing`。行の並びは「定義済み（実効定義順）→自由プロパティ（名前昇順）」。Boolean 型は `input` を `"true"`/`"false"`/`""` で持つ。Date 型の `input` は `yyyy-MM-dd`。
+`PropertyRowUi(name: PropertyName, type: PropertyType, origin: PropertyOrigin, required: Boolean, input: String, value: PropertyValue, error: PropertyInputError?)`。`PropertyOrigin = Defined(definedBy: TagId) | Free`。`input` は入力欄の生文字列（Number/Date の編集中状態を保持）。`value` は `input` を型に従い解釈した結果で、解釈不能なら `Null` かつ `error = Unparsable`。`PropertyInputError = Unparsable | TypeMismatch | RequiredMissing`。行の並びは「定義済み（実効定義順）→自由プロパティ（名前昇順）」。Boolean 型は `input` を `"true"`/`"false"`/`""` で持つ。Date 型の `input` は `yyyy-MM-dd`。
 
 | 操作関数 | 動作 |
 |---|---|
 | `onTitleChange(title: String)` | title 更新、`isDirty = true`。`autoSyncTitleH1` が ON なら本文を `TitleHeadingSync`（本文が空なら `initialBody`、それ以外は `syncFirstH1`）で更新。OFF なら本文は不変 |
 | `onBodyChange(body: String)` | body 更新、`isDirty = true` |
 | `onModeChange(mode: EditorMode)` | モード切替。Preview に切替時に `previewDocument` 更新 |
-| `onTagToggle(tagId: TagId)` | 選択トグル。`resolveForTags` で実効定義を再計算し `propertyRows` を再構成（既存値は保持、新しい定義は空で追加、定義が消えた行は自由プロパティ化）。再検証 |
-| `onPropertyInputChange(name: PropertyName, input: String)` | 行の入力更新・解釈・再検証 |
+| `onTagToggle(tagId: TagId)` | 選択トグル。v3: 付与時は `onTagsAdded` で追加タグの項目を `Null`（未入力）で追加（既存値は不変）。取り外し時は `onTagsRemoved` により値が `Null` の項目は消え、それ以外（`Text("")` 含む）は自由プロパティとして残る。再検証 |
+| `onPropertyInputChange(name: PropertyName, input: String)` | 行の入力更新・解釈・再検証。v3: 文字列型は空でも `Text("")`（空白も `Text`）、Number/Date/Boolean の空は `Null`、NoteLink の空は `Null`。表示は `Null` が「未入力」プレースホルダ、`Text("")` は空の入力欄 |
 | `onAddFreeProperty(name: String, type: PropertyType)` | 自由プロパティ追加。空名・既存名と重複は無視して `error` を行ではなく `ShowMessage(NameRequired)` |
 | `onRemoveFreeProperty(name: PropertyName)` | 自由プロパティ行のみ削除可（定義済み行は値を空にするだけ） |
 | `onTagTableClick(tagId: TagId)` | `Navigate(TagTable(tagId))` |
@@ -226,7 +273,7 @@ flowchart TD
 | `onCreateTagClick()` | v2: `Navigate(TagEdit(null))`。ViewModel はバックスタックに残るため入力中の値は保持され、タグは `observeTags()` で自動反映 |
 | `onOpenNotePicker(name)` | v2: NoteLink 行のピッカーを開く。絞り込み初期値は定義の `targetTagId`（存在するタグのみ。無ければ「すべて」） |
 | `onPickerQueryChange(q)` / `onPickerFilterChange(tagId?)` / `onPickerToggle(id)` | v2: 検索語（タイトル部分一致）／タグ絞り込み（null=すべて。子孫タグを含む）／選択トグル。自分自身は候補から除外 |
-| `onPickerConfirm()` / `onPickerDismiss()` | v2: 確定で `PropertyValue.NoteRefs.of(selectedIds)`（空なら `Empty`）を行に反映 / 破棄 |
+| `onPickerConfirm()` / `onPickerDismiss()` | v2: 確定で `PropertyValue.NoteRefs.of(selectedIds)`（空なら `Null`）を行に反映 / 破棄 |
 | `onRemoveNoteRef(name, id)` | v2: NoteLink 行から参照を 1 件外す |
 | `onSaveClick()` | 検証。ERROR あり→`ShowMessage(SaveBlockedByErrors)`、保存しない。ERROR なし→`noteRepository.save`（WARNING は `issues` に残す）→`ShowMessage(Saved)`→`NavigateBack` |
 | `onBackClick()` | `isDirty` なら `showDiscardDialog = true`、でなければ `NavigateBack` |
@@ -278,6 +325,19 @@ flowchart TD
 | `onMoveDefinition(from: Int, to: Int)` | 並べ替え（定義順） |
 | `onSaveClick()` | 画面内検証（名前空、定義名の空/重複）→`tagRepository.save`。`CyclicInheritanceException`→`error=Cyclic`+`ShowMessage(CyclicInheritance)`、`DuplicateTagNameException`→`error=DuplicateName`+`ShowMessage(DuplicateTagName)`。成功→`ShowMessage(Saved)`→`NavigateBack` |
 | `onBackClick()` | `NavigateBack`（未保存確認は行わない） |
+
+### 5.4b TableIndexViewModel（v3）
+
+コンストラクタ: `(tagRepository: TagRepository, noteRepository: NoteRepository)`。`observeTags()` と `observeNotes()` を `combine` し、各タグの件数（子孫タグ付きを含むノート数）を数える。
+
+| UiState (`TableIndexUiState`) | 型 | 説明 |
+|---|---|---|
+| `rows` | `List<TableIndexRow>` | `TableIndexRow(tagId, name, noteCount)`。名前順（フラット） |
+| `isLoading` | `Boolean` | |
+
+| 操作関数 | 動作 |
+|---|---|
+| `onTagClick(id: TagId)` | `Navigate(TagTable(id))` |
 
 ### 5.5 TagTableViewModel
 
@@ -423,6 +483,8 @@ Compose の `Modifier.testTag` に使う定数。実機テストはこれで要�
 | `TAG_TABLE` | `tag_table` | 表全体 |
 | `TAG_TABLE_HEADER_PREFIX` | `tag_table_header_` | 列ヘッダ（`title` または `PropertyName.value`） |
 | `TAG_TABLE_ROW_PREFIX` | `tag_table_row_` | 行（末尾に `NoteId.value`） |
+
+v3 追加分: `TABLE_INDEX_LIST`, `TABLE_INDEX_EMPTY`, `TABLE_INDEX_ITEM_PREFIX`（末尾に `TagId.value`）, `BOTTOM_NAV`, `BOTTOM_NAV_NOTES`, `BOTTOM_NAV_TAGS`, `BOTTOM_NAV_TABLES`。
 
 v2 追加分（詳細は `TestTags.kt`）: `NOTE_EDIT_CREATE_TAG`, `NOTE_EDIT_AUTO_SYNC_H1`, `NOTE_EDIT_LINK_PICK_PREFIX`, `NOTE_EDIT_LINK_CHIP_PREFIX`, `NOTE_EDIT_LINK_REMOVE_PREFIX`, `NOTE_PICKER`, `NOTE_PICKER_SEARCH`, `NOTE_PICKER_FILTER_ALL`, `NOTE_PICKER_FILTER_TAG_PREFIX`, `NOTE_PICKER_ITEM_PREFIX`, `NOTE_PICKER_CONFIRM`, `NOTE_PICKER_CANCEL`, `NOTE_PICKER_EMPTY`, `TAG_LIST_ITEM_REPEAT_PREFIX`, `TAG_EDIT_DEFINITION_LINK_TARGET_PREFIX`, `TAG_TABLE_ADD_NOTE`。
 

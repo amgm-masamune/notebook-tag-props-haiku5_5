@@ -48,7 +48,7 @@ class NoteValidator {
         for (effective in schema.definitions) {
             val definition = effective.definition
             val value = note.properties[definition.name]
-            val isBlank = value == null || value is PropertyValue.Empty
+            val isBlank = value == null || value.isUnset
             if (!isBlank && value != null && !value.matches(definition.type)) {
                 issues.add(ValidationIssue.TypeMismatch(definition.name, definition.type, value))
             } else if (isBlank && definition.required) {

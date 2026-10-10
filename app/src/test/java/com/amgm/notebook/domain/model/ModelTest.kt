@@ -73,9 +73,9 @@ class ModelTest {
     }
 
     @Test
-    fun `Emptyはどの型にも適合する`() {
+    fun `Nullはどの型にも適合する`() {
         listOf(PropertyType.Text, PropertyType.Number, PropertyType.Boolean, PropertyType.Date).forEach {
-            assertTrue(PropertyValue.Empty.matches(it))
+            assertTrue(PropertyValue.Null.matches(it))
         }
     }
 
@@ -98,5 +98,17 @@ class ModelTest {
         // 自己参照の拒否はリポジトリ保存時の責務
         val tag = Tag(TagId("t"), "T", setOf(TagId("t")), emptyList())
         assertEquals(setOf(TagId("t")), tag.parentIds)
+    }
+
+    @Test
+    fun `空文字のTextはText型にだけ一致しNullとは別物`() {
+        val empty = PropertyValue.Text("")
+        assertTrue(empty.matches(PropertyType.Text))
+        assertFalse(empty.matches(PropertyType.Number))
+        assertFalse(empty == PropertyValue.Null)
+        assertTrue(empty.isUnset)
+        assertTrue(PropertyValue.Null.isUnset)
+        assertFalse(PropertyValue.Text(" ").isUnset)
+        assertFalse(PropertyValue.Number(0.0).isUnset)
     }
 }

@@ -27,4 +27,9 @@ sealed interface Destination {
     data class TagTable(val tagId: TagId) : Destination {
         override val route: String get() = Routes.tagTable(tagId)
     }
+
+    /** 表タブ。 */
+    data object TableIndex : Destination {
+        override val route: String get() = Routes.TABLES
+    }
 }

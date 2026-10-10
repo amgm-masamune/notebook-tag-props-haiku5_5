@@ -3,6 +3,8 @@ package com.amgm.notebook.ui.navigation
 import com.amgm.notebook.domain.model.NoteId
 import com.amgm.notebook.domain.model.TagId
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RoutesTest {
@@ -14,6 +16,7 @@ class RoutesTest {
         assertEquals("tag_list", Routes.TAG_LIST)
         assertEquals("tag_edit?tagId={tagId}", Routes.TAG_EDIT)
         assertEquals("tag_table/{tagId}", Routes.TAG_TABLE)
+        assertEquals("tables", Routes.TABLES)
         assertEquals("noteId", Routes.ARG_NOTE_ID)
         assertEquals("tagId", Routes.ARG_TAG_ID)
     }
@@ -52,5 +55,17 @@ class RoutesTest {
         assertEquals(Routes.TAG_LIST, Destination.TagList.route)
         assertEquals(Routes.tagEdit(TagId("t")), Destination.TagEdit(TagId("t")).route)
         assertEquals(Routes.tagTable(TagId("t")), Destination.TagTable(TagId("t")).route)
+        assertEquals(Routes.TABLES, Destination.TableIndex.route)
+    }
+
+    @Test
+    fun `トップレベルのルートは3タブのみ`() {
+        assertEquals(listOf("note_list", "tag_list", "tables"), Routes.TOP_LEVEL)
+        assertTrue(isTopLevelRoute(Routes.TABLES))
+        assertTrue(isTopLevelRoute(Routes.NOTE_LIST))
+        assertFalse(isTopLevelRoute(Routes.NOTE_EDIT))
+        assertFalse(isTopLevelRoute(Routes.TAG_EDIT))
+        assertFalse(isTopLevelRoute(Routes.TAG_TABLE))
+        assertFalse(isTopLevelRoute(null))
     }
 }

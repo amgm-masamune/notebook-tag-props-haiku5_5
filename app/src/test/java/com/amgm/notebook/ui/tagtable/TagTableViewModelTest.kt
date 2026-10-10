@@ -83,7 +83,7 @@ class TagTableViewModelTest {
         assertEquals(listOf("n2", "n1"), table.rows.map { it.noteId.value })
         val n2 = table.rows[0]
         assertEquals("電子本", n2.title)
-        assertEquals(listOf(PropertyValue.Number(500.0), PropertyValue.Empty), n2.cells)
+        assertEquals(listOf(PropertyValue.Number(500.0), PropertyValue.Null), n2.cells)
         val n1 = table.rows[1]
         assertEquals(listOf(PropertyValue.Number(1000.0), PropertyValue.Text("甲")), n1.cells)
     }
@@ -240,7 +240,7 @@ class TagTableViewModelTest {
         assertEquals("(無題)", cellText(refs("c"), titles))
         assertEquals("Alpha, （削除済み）", cellText(refs("a", "gone"), titles))
         assertEquals("2 件", cellText(refs("x", "y"), titles))
-        assertEquals("", cellText(PropertyValue.NoteRefs(emptyList()), titles))
+        assertEquals("", cellText(PropertyValue.Null, titles))
         assertEquals("1200", cellText(PropertyValue.Number(1200.0), titles))
     }
 

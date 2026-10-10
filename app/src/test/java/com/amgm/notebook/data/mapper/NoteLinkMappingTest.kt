@@ -25,8 +25,9 @@ class NoteLinkMappingTest {
     }
 
     @Test
-    fun `NoteRefsは空も複数も往復する`() {
-        val empty = PropertyValue.NoteRefs(emptyList())
+    fun `NoteRefsは複数も往復し空はNullに正規化される`() {
+        val empty = PropertyValue.ofNoteRefs(emptyList())
+        assertEquals(PropertyValue.Null, empty)
         val many = PropertyValue.NoteRefs(listOf(NoteId("b-2"), NoteId("a-1"), NoteId("c-3")))
         assertEquals(empty, roundTrip(empty))
         assertEquals(many, roundTrip(many))
@@ -36,7 +37,8 @@ class NoteLinkMappingTest {
     fun `NoteRefsはNOTE_REFSとカンマ区切りで符号化される`() {
         val value = PropertyValue.NoteRefs(listOf(NoteId("x"), NoteId("y")))
         assertEquals("NOTE_REFS" to "x,y", PropertyValueCodec.encode(value))
-        assertEquals("NOTE_REFS" to "", PropertyValueCodec.encode(PropertyValue.NoteRefs(emptyList())))
+        assertEquals("NULL" to "", PropertyValueCodec.encode(PropertyValue.ofNoteRefs(emptyList())))
+        assertEquals(PropertyValue.Null, PropertyValueCodec.decode("NOTE_REFS", ""))
     }
 
     @Test

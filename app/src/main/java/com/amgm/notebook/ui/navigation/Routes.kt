@@ -14,6 +14,11 @@ object Routes {
     const val TAG_LIST = "tag_list"
     const val TAG_EDIT = "tag_edit?tagId={tagId}"
     const val TAG_TABLE = "tag_table/{tagId}"
+    /** 表タブ（タグごとの表への入口）。 */
+    const val TABLES = "tables"
+
+    /** ボトムナビゲーションを表示するトップレベルのルート。 */
+    val TOP_LEVEL: List<String> = listOf(NOTE_LIST, TAG_LIST, TABLES)
 
     private fun encode(value: String): String =
         URLEncoder.encode(value, "UTF-8").replace("+", "%20")
