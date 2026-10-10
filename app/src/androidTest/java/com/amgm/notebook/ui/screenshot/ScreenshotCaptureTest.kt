@@ -57,10 +57,10 @@ class ScreenshotCaptureTest {
         get() = (InstrumentationRegistry.getInstrumentation()
             .targetContext.applicationContext as NotebookApplication).container
 
-    // 値クラスは lateinit 不可のため、ダミー初期値を持たせる（@Before の seedSampleData で必ず上書きされる）
-    private var projectTagId: TagId = TagId("")
-    private var devTagId: TagId = TagId("")
-    private var readingTagId: TagId = TagId("")
+    // 値クラスは lateinit 不可のため null で初期化する（@Before の seedSampleData で必ず上書きされ、使用箇所は requireNotNull で取り出す）
+    private var projectTagId: TagId? = null
+    private var devTagId: TagId? = null
+    private var readingTagId: TagId? = null
     private val noteIdByTitle = mutableMapOf<String, NoteId>()
 
     @Before
@@ -98,7 +98,7 @@ class ScreenshotCaptureTest {
         runBlocking {
             c.tagRepository.save(
                 Tag(
-                    id = projectTagId,
+                    id = requireNotNull(projectTagId),
                     name = "プロジェクト",
                     parentIds = emptySet(),
                     ownPropertyDefinitions = listOf(
@@ -109,9 +109,9 @@ class ScreenshotCaptureTest {
             )
             c.tagRepository.save(
                 Tag(
-                    id = devTagId,
+                    id = requireNotNull(devTagId),
                     name = "開発",
-                    parentIds = setOf(projectTagId),
+                    parentIds = setOf(requireNotNull(projectTagId)),
                     ownPropertyDefinitions = listOf(
                         PropertyDefinition(PropertyName("工数"), PropertyType.Number, required = false),
                         PropertyDefinition(PropertyName("担当"), PropertyType.Text, required = false)
@@ -120,7 +120,7 @@ class ScreenshotCaptureTest {
             )
             c.tagRepository.save(
                 Tag(
-                    id = readingTagId,
+                    id = requireNotNull(readingTagId),
                     name = "読書",
                     parentIds = emptySet(),
                     ownPropertyDefinitions = listOf(
@@ -146,7 +146,7 @@ class ScreenshotCaptureTest {
                     val schema = resolver.resolve(tagId)
                     ```
                 """.trimIndent(),
-                tagIds = setOf(devTagId),
+                tagIds = setOf(requireNotNull(devTagId)),
                 properties = mapOf(
                     PropertyName("工数") to PropertyValue.Number(8.5),
                     PropertyName("担当") to PropertyValue.Text("山田"),
@@ -169,7 +169,7 @@ class ScreenshotCaptureTest {
 
                     > 締切は **11月15日** 厳守
                 """.trimIndent(),
-                tagIds = setOf(projectTagId, devTagId),
+                tagIds = setOf(requireNotNull(projectTagId), requireNotNull(devTagId)),
                 properties = mapOf(
                     PropertyName("状態") to PropertyValue.Text("進行中"),
                     PropertyName("期限") to PropertyValue.Date(LocalDate.of(2026, 11, 15)),
@@ -190,7 +190,7 @@ class ScreenshotCaptureTest {
 
                     > 次は テストの設計 を読む
                 """.trimIndent(),
-                tagIds = setOf(readingTagId),
+                tagIds = setOf(requireNotNull(readingTagId)),
                 properties = mapOf(
                     PropertyName("評価") to PropertyValue.Number(4.0),
                     PropertyName("読了日") to PropertyValue.Date(LocalDate.of(2026, 9, 20)),
@@ -224,7 +224,7 @@ class ScreenshotCaptureTest {
 
                     原因は `Null` と空文字の扱い。
                 """.trimIndent(),
-                tagIds = setOf(devTagId),
+                tagIds = setOf(requireNotNull(devTagId)),
                 properties = mapOf(
                     PropertyName("工数") to PropertyValue.Number(3.0),
                     PropertyName("担当") to PropertyValue.Text("田中")
@@ -393,7 +393,7 @@ class ScreenshotCaptureTest {
     private fun openDevTagTable() {
         click(TestTags.BOTTOM_NAV_TABLES)
         waitForTag(TestTags.TABLE_INDEX_LIST)
-        click(TestTags.TABLE_INDEX_ITEM_PREFIX + devTagId.value)
+        click(TestTags.TABLE_INDEX_ITEM_PREFIX + requireNotNull(devTagId).value)
         waitForTag(TestTags.TAG_TABLE)
         waitForTagPrefix(TestTags.TAG_TABLE_ROW_PREFIX)
     }
