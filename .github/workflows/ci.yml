@@ -26,7 +26,10 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
       - name: Unit tests and debug APK
-        run: chmod +x ./gradlew && ./gradlew :app:testDebugUnitTest :app:assembleDebug --no-daemon --stacktrace
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:testDebugUnitTest :app:assembleDebug --no-daemon --stacktrace > gradle-unit.log 2>&1 || { tail -n 150 gradle-unit.log; exit 1; }
+          tail -n 30 gradle-unit.log
       - name: Summarize test results
         if: always()
         run: python3 scripts/summarize_tests.py "app/build/test-results/testDebugUnitTest/*.xml" summary.md "unit-test"
@@ -35,10 +38,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          python3 scripts/extract_gradle_errors.py gradle-unit.log gradle-errors.md
           {
             echo "## CI結果: unit-test (${{ job.status }})"
             echo
             cat summary.md
+            if [ "${{ job.status }}" != "success" ] || ! grep -q '^### ' summary.md; then
+              echo
+              echo "### Gradle エラー（抜粋）"
+              echo
+              cat gradle-errors.md
+            fi
           } > comment.md
           cat comment.md >> "$GITHUB_STEP_SUMMARY"
           gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" -f body="$(cat comment.md)" || true
@@ -50,6 +60,8 @@ jobs:
           path: |
             app/build/reports/tests/
             app/build/test-results/
+            gradle-unit.log
+            gradle-errors.md
           if-no-files-found: warn
           retention-days: 14
       - name: Upload debug APK
@@ -98,7 +110,10 @@ jobs:
           disable-animations: true
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: chmod +x ./gradlew && ./gradlew :app:connectedDebugAndroidTest :app:assembleDebugAndroidTest --no-daemon --stacktrace
+          # emulator-runner は script を行ごとに sh -c で実行する（bash ではない）ので PIPESTATUS や pipefail は使わない
+          script: |
+            chmod +x ./gradlew && ./gradlew :app:connectedDebugAndroidTest :app:assembleDebugAndroidTest --no-daemon --stacktrace > gradle-android.log 2>&1 || { tail -n 150 gradle-android.log; exit 1; }
+            tail -n 30 gradle-android.log
       - name: Summarize test results
         if: always()
         run: python3 scripts/summarize_tests.py "app/build/outputs/androidTest-results/connected/**/*.xml" summary.md "android-test (API ${{ matrix.api-level }})"
@@ -107,10 +122,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          python3 scripts/extract_gradle_errors.py gradle-android.log gradle-errors.md
           {
             echo "## CI結果: android-test API${{ matrix.api-level }} (${{ job.status }})"
             echo
             cat summary.md
+            if [ "${{ job.status }}" != "success" ] || ! grep -q '^### ' summary.md; then
+              echo
+              echo "### Gradle エラー（抜粋）"
+              echo
+              cat gradle-errors.md
+            fi
           } > comment.md
           cat comment.md >> "$GITHUB_STEP_SUMMARY"
           gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" -f body="$(cat comment.md)" || true
@@ -145,6 +167,8 @@ jobs:
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
             app/build/outputs/connected_android_test_additional_output/
+            gradle-android.log
+            gradle-errors.md
           if-no-files-found: warn
           retention-days: 14
       - name: Upload androidTest APK

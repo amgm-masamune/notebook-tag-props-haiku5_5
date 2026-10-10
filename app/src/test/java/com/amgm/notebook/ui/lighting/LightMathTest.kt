@@ -12,6 +12,12 @@ class LightMathTest {
 
     private val delta = 1e-3f
 
+    /**
+     * Compose の sRGB の Color は各チャンネルを 8bit（1/255 単位）で保持するため、
+     * 値は最大 0.5/255 ずれうる。その丸めを許す誤差。
+     */
+    private val colorDelta = 1f / 255f + 1e-4f
+
     private fun assertOffset(expected: Offset, actual: Offset) {
         assertEquals("x", expected.x, actual.x, delta)
         assertEquals("y", expected.y, actual.y, delta)
@@ -144,18 +150,18 @@ class LightMathTest {
         val color = Color(red = 0.1f, green = 0.2f, blue = 0.3f, alpha = 0.4f)
         val floats = colorToFloats(color)
         assertEquals(4, floats.size)
-        assertEquals(0.1f, floats[0], delta)
-        assertEquals(0.2f, floats[1], delta)
-        assertEquals(0.3f, floats[2], delta)
-        assertEquals(0.4f, floats[3], delta)
+        assertEquals(0.1f, floats[0], colorDelta)
+        assertEquals(0.2f, floats[1], colorDelta)
+        assertEquals(0.3f, floats[2], colorDelta)
+        assertEquals(0.4f, floats[3], colorDelta)
     }
 
     @Test
     fun `非乗算で返す（アルファを色に掛けない）`() {
         val floats = colorToFloats(Color(red = 1f, green = 0.5f, blue = 0f, alpha = 0.5f))
-        assertEquals(1f, floats[0], delta)
-        assertEquals(0.5f, floats[1], delta)
-        assertEquals(0f, floats[2], delta)
-        assertEquals(0.5f, floats[3], delta)
+        assertEquals(1f, floats[0], colorDelta)
+        assertEquals(0.5f, floats[1], colorDelta)
+        assertEquals(0f, floats[2], colorDelta)
+        assertEquals(0.5f, floats[3], colorDelta)
     }
 }

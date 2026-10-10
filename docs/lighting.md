@@ -1,6 +1,6 @@
 # 光と影（シェーダー基盤）
 
-ステータス: 設計（基盤のみ実装。コンポーネントや画面への適用は後続）
+ステータス: 基盤とコンポーネントを実装。ルートへの組み込み済み。各画面の細部への適用は後続
 
 関連: [architecture.md](architecture.md)（テーマ・コンポーネント） / [testing.md](testing.md)
 
@@ -63,7 +63,33 @@
 
 フォールバックでも光源の向きは同じ（左上から右下）に揃える。
 
-## 6. 関係図
+## 6. コンポーネント
+
+`ui/lighting/` の 5 つの部品。画面の入口で `LocalLightState` を渡し、各部品は `LightState` から色と光源位置を読む。
+
+| 部品 | ファイル | 役割 | API 26〜32 |
+|---|---|---|---|
+| `AmbientLightBackground(modifier, content)` | `AmbientLightBackground.kt` | 画面の背面に `AMBIENT` を全面描画し、その上に `content`。`NotebookApp` が画面全体を包む | 紙色 + 光源位置を中心とする放射グラデーション + 下端の薄い影 |
+| `Modifier.softShadow(cornerRadius, elevation)` | `SoftShadow.kt` | 2 層の `SHADOW`。接地影（ぼかし 0.6 × elevation、ずれ 0.3 倍、不透明度 1.3 倍）と環境影（ぼかし 2.2 × elevation、ずれ 1 倍）。要素の外へはみ出して描く | `Modifier.shadow`（`ambientColor` / `spotColor` に影色） |
+| `Modifier.litSurface(cornerRadius, baseColor, interactionSource?)` | `LitSurface.kt` | `SURFACE` で面を描く。押下点から光が広がり、離すと 220ms で消える | 色の塗り + 左上から透明へ白の半透明（ライト 0.35 / ダーク 0.08）+ 上辺の 1dp の線 |
+| `Modifier.glassPanel(cornerRadius)` | `GlassPanel.kt` | `GLASS` で半透明の板を描く（ライト面色 0.82、ダーク 0.78）。ボトムバー用 | 面色の半透明 + 上辺の 1dp の線 |
+| `GlowFab(text, icon, onClick, modifier)` | `GlowFab.kt` | 拡張 FAB の背後に `GLOW`（広がり 24dp、色 `glowColor`、不透明度 0.45）。`modifier`（testTag を含む）は FAB 本体へ渡す | `Modifier.shadow` の `spotColor` を `glowColor` にする |
+
+共通の約束:
+
+- 光源の位置・時間・押下の状態は**描画フェーズ（`drawBehind`）でだけ読む**。再コンポーズを起こさない。要素の画面上の矩形は `onGloballyPositioned` で `State` に保存し、描画で読む（`rememberRootBounds` / `trackRootBounds`）。
+- 影と後光は要素の外側へ描く。描画枠は「要素 + 拡張量」（`shadowExpansion` / `glowExpansion` / `shaderFrame`）で、`translate` で枠の原点へ移してからシェーダーを描く。拡張量はぼかし幅の 3 倍（後光は広がりの 4 倍）。
+- シェーダーの uniform は要素ごと・層ごとに `remember` した `RuntimeShader` に、描画のたびに設定する。
+- 光源座標は画面サイズ（`LocalConfiguration` × 密度）を基準にし、要素は root 座標で測る。ステータスバー等の分だけ方向がずれうるが、影の向きに目立つ差は出ない想定。
+- モーション低減のときは `shaderTimeSec()` が 0 を返し、木漏れ日・脈動・きらめきが止まる。
+
+### 画面への適用の留意点（後続の担当へ）
+
+- 6 つの画面の `Scaffold` の `containerColor` は `Color.Transparent` にした。`TopAppBar` など画面内の不透明な面は未変更で、背景の光を隠すので、必要なら次の担当が透明にする。
+- 既存画面の `ExtendedFloatingActionButton` は未置換（`GlowFab` に差し替えるのは次の担当）。
+- ボトムバーは浮遊型になり、上辺の区切り線を外した。
+
+## 7. 関係図
 
 ```mermaid
 flowchart LR
@@ -92,13 +118,14 @@ flowchart LR
     AMB -.->|"API 33 未満"| BRUSH
 ```
 
-各コンポーネントは実装の担当が接続する。このドキュメントの範囲は `LightState` と `NotebookShaders` まで。
+コンポーネントは `ui/lighting/` の部品（§6）として実装済み。ルートは `NotebookApp` が `LocalLightState` を渡し、背景を `AmbientLightBackground` で包む。
 
-## 7. テスト
+## 8. テスト
 
 | 種類 | ファイル | 内容 |
 |---|---|---|
 | JVM 単体 | `app/src/test/.../ui/lighting/LightMathTest.kt` | 周期で元に戻る・`periodSec <= 0` で anchor、影の方向・長さ・頭打ち・一致時の既定値、影の不透明度の上限（ライト/ダーク）、スペキュラ中心の寄り方、色の RGBA 取り出し（非乗算） |
+| JVM 単体 | `app/src/test/.../ui/lighting/LightComponentMathTest.kt` | 要素ローカルへの変換、影・後光の拡張量、描画枠の大きさと形の中心（ずれあり/なし）、接地影の不透明度 |
 | JVM 静的検査 | `app/src/test/.../ui/lighting/ShaderSpecLintTest.kt` | 全 `ShaderSpec` について、`half4 main(float2` の存在、uniform の宣言と仕様の双方向の一致、宣言以外での使用、`floatCount` と宣言型の一致、`texture` / `uniform shader` の禁止、波括弧の対応、定数境界の for ループ、名前の重複なし |
 | 実機（API 33 以上） | `app/src/androidTest/.../ui/lighting/ShaderCompileTest.kt` | 全シェーダーを `RuntimeShader` でコンパイルし、全 uniform に `floatCount` 個の値を設定できること。失敗メッセージにシェーダー名と uniform 名を含む |
 

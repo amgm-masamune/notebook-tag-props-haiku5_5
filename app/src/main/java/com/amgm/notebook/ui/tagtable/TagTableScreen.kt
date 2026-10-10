@@ -72,7 +72,7 @@ fun TagTableScreen(viewModel: TagTableViewModel, snackbarHostState: SnackbarHost
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = viewModel::onAddNoteClick,

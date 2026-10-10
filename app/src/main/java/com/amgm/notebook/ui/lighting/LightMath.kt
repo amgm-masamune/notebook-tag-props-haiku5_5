@@ -4,6 +4,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -81,3 +82,52 @@ private const val HIGHLIGHT_REACH = 0.6f
 /** 色を sRGB のまま `[r, g, b, a]`（非乗算）の FloatArray にする。 */
 fun colorToFloats(color: Color): FloatArray =
     floatArrayOf(color.red, color.green, color.blue, color.alpha)
+
+/**
+ * 接地影（近い層）の不透明度。環境影の [shadowAlpha] を 1.3 倍し、上限 1 にする。
+ */
+fun contactShadowAlpha(ambientAlpha: Float): Float = min(1f, ambientAlpha * 1.3f)
+
+/** 影のぼかし幅（px）に掛けて、描画矩形を広げる倍率。ガウス状の減衰が十分に 0 になる距離。 */
+private const val SHADOW_REACH = 3f
+
+/** 光の後光（GLOW）の広がり（px）に掛ける倍率。指数減衰が十分に小さくなる距離。 */
+private const val GLOW_REACH = 4f
+
+/**
+ * 影シェーダーの描画矩形を、要素の各辺からどれだけ外へ広げるか（px、片側）。
+ * ぼかし幅の [SHADOW_REACH] 倍に、影のずれの絶対値を足す（ずれた影の縁まで描けるように）。
+ */
+fun shadowExpansion(blurPx: Float, offset: Offset): Offset =
+    Offset(blurPx * SHADOW_REACH + abs(offset.x), blurPx * SHADOW_REACH + abs(offset.y))
+
+/** 後光シェーダーの描画矩形の拡張量（px、片側）。広がり [spreadPx] の [GLOW_REACH] 倍。 */
+fun glowExpansion(spreadPx: Float): Offset = Offset(spreadPx * GLOW_REACH, spreadPx * GLOW_REACH)
+
+/**
+ * 要素の外側まで描くシェーダーの描画枠（要素ローカル座標）。
+ * [topLeft] は枠の左上（負の値になる）。枠の中では [size] が iResolution、[rectCenter] が形の中心になる。
+ * 描画は `translate(topLeft)` の中で行い、シェーダーの原点を枠の左上に合わせる。
+ */
+data class ShaderFrame(val topLeft: Offset, val size: Size, val rectCenter: Offset)
+
+/**
+ * 要素（[elementSize]、要素ローカルの原点が左上）を囲む描画枠を作る。
+ * [expansion] は各辺の片側の拡張量、[offset] は形の中心のずれ（影の方向）。
+ */
+fun shaderFrame(elementSize: Size, expansion: Offset, offset: Offset = Offset.Zero): ShaderFrame {
+    val topLeft = Offset(-expansion.x, -expansion.y)
+    val size = Size(
+        width = elementSize.width + expansion.x * 2f,
+        height = elementSize.height + expansion.y * 2f
+    )
+    val rectCenter = Offset(
+        x = elementSize.width / 2f + offset.x - topLeft.x,
+        y = elementSize.height / 2f + offset.y - topLeft.y
+    )
+    return ShaderFrame(topLeft, size, rectCenter)
+}
+
+/** 画面座標の点を、要素ローカル座標（要素の左上が原点）へ変換する。要素の外の点でもよい。 */
+fun toElementLocal(screenPoint: Offset, elementTopLeft: Offset): Offset =
+    Offset(screenPoint.x - elementTopLeft.x, screenPoint.y - elementTopLeft.y)

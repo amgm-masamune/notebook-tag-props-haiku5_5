@@ -174,7 +174,8 @@ class V3ScenarioTest {
     /** a: ボトムバーが見え、表タブ → 一覧 → 表ビュー、タグタブ → タグ一覧に切り替えられる。 */
     @Test
     fun scenarioA_bottomNav_tabsSwitchAndTableIndexNavigates() {
-        waitForTag(TestTags.BOTTOM_NAV)
+        // BOTTOM_NAV 自体の testTag は現在の実装に無いため、各タブの tag でバーの表示を判定する
+        waitForTag(TestTags.BOTTOM_NAV_NOTES)
         rule.onNodeWithTag(TestTags.BOTTOM_NAV_NOTES).assertIsDisplayed()
         rule.onNodeWithTag(TestTags.BOTTOM_NAV_TAGS).assertIsDisplayed()
         rule.onNodeWithTag(TestTags.BOTTOM_NAV_TABLES).assertIsDisplayed()
@@ -194,12 +195,12 @@ class V3ScenarioTest {
         click(TestTags.TABLE_INDEX_ITEM_PREFIX + tagId)
         waitForTag(TestTags.TAG_TABLE)
         // 表ビューはトップレベルではないのでボトムバーは出ない
-        waitForTagGone(TestTags.BOTTOM_NAV)
+        waitForTagGone(TestTags.BOTTOM_NAV_NOTES)
 
         // 戻ると表タブの一覧に戻り、ボトムバーも復活する
         click(TestTags.TAG_TABLE_BACK)
         waitForTag(TestTags.TABLE_INDEX_LIST)
-        waitForTag(TestTags.BOTTOM_NAV)
+        waitForTag(TestTags.BOTTOM_NAV_NOTES)
 
         // タグタブでタグ一覧が出る
         click(TestTags.BOTTOM_NAV_TAGS)
