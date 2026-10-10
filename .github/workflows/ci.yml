@@ -2,6 +2,8 @@ name: CI
 
 on:
   push:
+    branches-ignore:
+      - ci-screenshots
   pull_request:
   workflow_dispatch:
 
@@ -60,8 +62,20 @@ jobs:
           retention-days: 14
 
   android-test:
+    name: android-test (API ${{ matrix.api-level }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # API 30 は API 33 未満のフォールバック表示の検証用
+          - api-level: 30
+            target: google_apis
+            arch: x86_64
+          - api-level: 34
+            target: google_apis
+            arch: x86_64
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -77,9 +91,9 @@ jobs:
       - name: Instrumented tests on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
-          arch: x86_64
-          target: google_apis
+          api-level: ${{ matrix.api-level }}
+          arch: ${{ matrix.arch }}
+          target: ${{ matrix.target }}
           profile: pixel_6
           disable-animations: true
           force-avd-creation: false
@@ -87,34 +101,57 @@ jobs:
           script: chmod +x ./gradlew && ./gradlew :app:connectedDebugAndroidTest :app:assembleDebugAndroidTest --no-daemon --stacktrace
       - name: Summarize test results
         if: always()
-        run: python3 scripts/summarize_tests.py "app/build/outputs/androidTest-results/connected/**/*.xml" summary.md "android-test"
+        run: python3 scripts/summarize_tests.py "app/build/outputs/androidTest-results/connected/**/*.xml" summary.md "android-test (API ${{ matrix.api-level }})"
       - name: Post CI summary
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           {
-            echo "## CI結果: android-test (${{ job.status }})"
+            echo "## CI結果: android-test API${{ matrix.api-level }} (${{ job.status }})"
             echo
             cat summary.md
           } > comment.md
           cat comment.md >> "$GITHUB_STEP_SUMMARY"
           gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" -f body="$(cat comment.md)" || true
+      - name: Publish screenshots to ci-screenshots branch
+        if: always()
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bash scripts/publish_screenshots.sh \
+            app/build/outputs/connected_android_test_additional_output \
+            "${{ github.repository }}" "${GITHUB_SHA::7}" "${{ matrix.api-level }}" screenshots.md
+      - name: Post screenshot links
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -s screenshots.md ]; then
+            {
+              echo "## スクリーンショット api${{ matrix.api-level }}"
+              echo
+              cat screenshots.md
+            } > screenshots_comment.md
+            gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" -f body="$(cat screenshots_comment.md)" || true
+          fi
       - name: Upload instrumented test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: android-test-reports
+          name: android-test-reports-api${{ matrix.api-level }}
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
+            app/build/outputs/connected_android_test_additional_output/
           if-no-files-found: warn
           retention-days: 14
       - name: Upload androidTest APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: android-test-apk
+          name: android-test-apk-api${{ matrix.api-level }}
           path: app/build/outputs/apk/androidTest/debug/*.apk
           if-no-files-found: warn
           retention-days: 14

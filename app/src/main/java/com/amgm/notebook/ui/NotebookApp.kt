@@ -1,5 +1,6 @@
 package com.amgm.notebook.ui
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -19,9 +20,10 @@ import com.amgm.notebook.ui.navigation.NotebookNavHost
 import com.amgm.notebook.ui.navigation.isTopLevelRoute
 import com.amgm.notebook.ui.theme.NotebookTheme
 
+/** [darkThemeOverride] が null なら端末設定に従う（テストからダーク/ライトを強制するための口）。 */
 @Composable
-fun NotebookApp(container: AppContainer) {
-    NotebookTheme {
+fun NotebookApp(container: AppContainer, darkThemeOverride: Boolean? = null) {
+    NotebookTheme(darkTheme = darkThemeOverride ?: isSystemInDarkTheme()) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             val navController = rememberNavController()
             val backStackEntry by navController.currentBackStackEntryAsState()

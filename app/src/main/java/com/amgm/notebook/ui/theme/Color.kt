@@ -52,3 +52,9 @@ internal val OnAmberSoftDark = Color(0xFFF6DDB0)
 internal val OutlineDark = Color(0xFF5A5D6A)
 internal val HairlineDark = Color(0xFF2E313B)
 internal val RowAltDark = Color(0xFF1F2128)
+
+// ---- 光（ui/lighting の光源モデル用）----
+internal val LightKeyLight = Color(0xFFFFE7B8)       // 窓辺の朝の光（主光源）
+internal val LightKeyDark = Color(0xFFFFC98A)        // 卓上灯（暖色）
+internal val LightHighlightDark = Color(0xFFFFF1DC)  // 卓上灯の反射（温白）
+internal val LightRimDark = Color(0xFFC9D2FF)        // カードの縁に当たる淡い青白

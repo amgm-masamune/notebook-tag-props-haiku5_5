@@ -12,6 +12,7 @@ junit = "4.13.2"
 androidxTestRunner = "1.6.2"
 androidxTestExtJunit = "1.2.1"
 espresso = "3.6.1"
+androidxTestServices = "1.5.0"
 
 [libraries]
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
@@ -34,6 +35,8 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidxTestRunner" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
 androidx-test-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
+androidx-test-services-storage = { group = "androidx.test.services", name = "storage", version.ref = "androidxTestServices" }
+androidx-test-services-apk = { group = "androidx.test.services", name = "test-services", version.ref = "androidxTestServices" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
