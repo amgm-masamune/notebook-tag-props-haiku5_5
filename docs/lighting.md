@@ -41,9 +41,9 @@
 
 | 名前 | 役割 | 描画範囲 | uniform（型・個数） |
 |---|---|---|---|
-| `AMBIENT`（ambient） | 全画面の背景。ライトは暖白の光の減衰と窓の光 2 枚（光源方向に約 -28° 回転した平行四辺形）、2 層の value noise による木漏れ日（窓の光の中だけ、周期 112・224 秒で漂う）、ダークは上部中央の卓上灯の溜まりと寒色のフィル。ビネット、静的ハッシュの粒状感 | 画面全体 | `iResolution`(float2), `iTime`(float), `uLightPos`(float2, px), `uBaseColor`(float4), `uKeyColor`(float4), `uShadowColor`(float4), `uIntensity`(float), `uGrain`(float), `uDark`(float, 0 or 1) |
+| `AMBIENT`（ambient） | 全画面の背景。ライトは暖白の光の減衰と窓の光 2 枚（枚幅 0.24W・高さ 0.50H・間隔 0.04W、-28° 回転・0.16 せん断の平行四辺形。窓の内側は暖白へ 11%、外側は 0.12W の範囲に +2% から 0 のハロー）、窓の中だけに 2 層 value noise（W/4 と W/9）の木漏れ日（窓の内側の強さを 0.55〜1.0 倍。周期 112・224 秒で漂う。時刻 0 でも模様が出る）、ダークは上部中央の卓上灯の溜まりと寒色のフィル。ビネット、静的ハッシュの粒状感 | 画面全体 | `iResolution`(float2), `iTime`(float), `uLightPos`(float2, px), `uBaseColor`(float4), `uKeyColor`(float4), `uShadowColor`(float4), `uIntensity`(float), `uGrain`(float), `uDark`(float, 0 or 1) |
 | `SURFACE`（surface） | カードの面。角丸 SDF マスク、光源方向に沿った面の色、柔らかなスペキュラ、縁の 1.2px のベベル（SDF の勾配と光源方向の内積で切り替え）、押下点からの放射グロー | 要素 | `iResolution`(float2, 要素サイズ), `uLightPos`(float2, 要素ローカル。要素外可), `uBaseColor`(float4), `uHighlightColor`(float4), `uRimColor`(float4), `uRadius`(float), `uPress`(float, 0..1), `uPressPos`(float2), `uPressColor`(float4), `uDark`(float, 0 or 1), `iTime`(float) |
-| `SHADOW`（shadow） | 柔らかい影。角丸矩形 SDF からの指数減衰。乗算済み。要素の内側は描かない（半透明の面の下で透けないように） | 影の描画領域（ぼかし幅ぶん大きく） | `iResolution`(float2), `uRectCenter`(float2), `uRectSize`(float2), `uRadius`(float), `uBlur`(float), `uShadowColor`(float4) |
+| `SHADOW`（shadow） | 柔らかい影。ずらした影の矩形の SDF からの指数減衰。乗算済み。要素本体（ずらす前の矩形）の内側だけを抜く（縁は 1.5px でアンチエイリアス）。本体を抜かないと、ずらした影が本体の直下で透けて二重の縁に見える | 影の描画領域（ぼかし幅ぶん大きく） | `iResolution`(float2), `uRectCenter`(float2), `uRectSize`(float2), `uRadius`(float), `uBlur`(float), `uShadowColor`(float4), `uCasterCenter`(float2, 描画枠の座標), `uCasterSize`(float2), `uCasterRadius`(float) |
 | `GLASS`（glass） | 半透明の板（ボトムバー等）。上辺の 1px の光の線を板の上に over 合成、光源側のゆるいグラデーション（4%）、ごく弱いノイズ。背景のぼかしはしない | 要素 | `iResolution`(float2), `uTint`(float4), `uHighlightColor`(float4), `uLightPos`(float2, 要素ローカル), `uRadius`(float), `iTime`(float) |
 | `GLOW`（glow） | FAB や選択要素の後光。形の内側は描かず、外側へ指数減衰。周期 7 秒で ±10% 脈動 | 要素の外側まで広く | `iResolution`(float2), `uRectCenter`(float2), `uRectSize`(float2), `uRadius`(float), `uGlowColor`(float4), `uSpread`(float), `iTime`(float) |
 
@@ -72,7 +72,7 @@
 | 部品 | ファイル | 役割 | API 26〜32 |
 |---|---|---|---|
 | `AmbientLightBackground(modifier, content)` | `AmbientLightBackground.kt` | 画面の背面に `AMBIENT` を全面描画し、その上に `content`。`NotebookApp` が画面全体を包む | 紙色 + 光源位置を中心とする放射グラデーション + 下端の弱い影 |
-| `Modifier.softShadow(cornerRadius, elevation)` | `SoftShadow.kt` | 2 層の `SHADOW`。接地影（ぼかし 1.5dp + elevation × 0.35、ずれ 0.25 倍、不透明度 0.65 倍）と環境影（ぼかし elevation × 3.0、光源と反対へ elevation × 0.9 ずらす）。要素の外へはみ出して描く | `Modifier.shadow`（`ambientColor` / `spotColor` に影色） |
+| `Modifier.softShadow(cornerRadius, elevation)` | `SoftShadow.kt` | 2 層の `SHADOW`。接地影（ぼかし 1.5dp + elevation × 0.35、ずれ 0.25 倍、不透明度 0.65 倍）と環境影（ぼかし elevation × 3.0、光源と反対へ elevation × 0.9 ずらす）。要素の外へはみ出して描く。要素本体（ずらす前）の位置・サイズ・角丸を `uCaster*` で渡し、本体の内側を抜く | `Modifier.shadow`（`ambientColor` / `spotColor` に影色） |
 | `Modifier.litSurface(cornerRadius, baseColor, interactionSource?)` | `LitSurface.kt` | `SURFACE` で面を描く。押下点から光が広がり、離すと 220ms で消える。`baseColor` の既定はカードの `surface`（ライト `#FFFDF8`、ダーク `#23252E`） | 色の塗り + 光源側の明るみ・反対側の沈み + 光源側の縁の 1dp の線 |
 | `Modifier.glassPanel(cornerRadius)` | `GlassPanel.kt` | `GLASS` で半透明の板を描く（ライト白 0.72、ダーク `#1C1E25` 0.78）。上辺の線はライト白 0.95、ダーク暖白 0.25。ボトムバー用 | 板の色の半透明 + 上辺の 1dp の線 |
 | `GlowFab(text, icon, onClick, modifier)` | `GlowFab.kt` | 拡張 FAB の背後に `GLOW`（広がり 24dp、色 `glowColor`、不透明度 0.45）。`modifier`（testTag を含む）は FAB 本体へ渡す | `Modifier.shadow` の `spotColor` を `glowColor` にする |
@@ -125,8 +125,8 @@ flowchart LR
 | 種類 | ファイル | 内容 |
 |---|---|---|
 | JVM 単体 | `app/src/test/.../ui/lighting/LightMathTest.kt` | 周期で元に戻る・`periodSec <= 0` で anchor、影の方向・長さ・頭打ち・一致時の既定値、影の不透明度の上限（ライト/ダーク）、スペキュラ中心の寄り方、色の RGBA 取り出し（非乗算） |
-| JVM 単体 | `app/src/test/.../ui/lighting/LightComponentMathTest.kt` | 要素ローカルへの変換、影・後光の拡張量、描画枠の大きさと形の中心（ずれあり/なし）、接地影の不透明度 |
-| JVM 静的検査 | `app/src/test/.../ui/lighting/ShaderSpecLintTest.kt` | 全 `ShaderSpec` について、`half4 main(float2` の存在、uniform の宣言と仕様の双方向の一致、宣言以外での使用、`floatCount` と宣言型の一致、`texture` / `uniform shader` の禁止、波括弧の対応、定数境界の for ループ、名前の重複なし |
+| JVM 単体 | `app/src/test/.../ui/lighting/LightComponentMathTest.kt` | 要素ローカルへの変換、影・後光の拡張量、描画枠の大きさと形の中心（ずれあり/なし）、影の本体（caster）の中心（拡張量に依らず要素中心へ戻る。影のずれで動かない）、接地影の不透明度 |
+| JVM 静的検査 | `app/src/test/.../ui/lighting/ShaderSpecLintTest.kt` | 全 `ShaderSpec` について、`half4 main(float2` の存在、uniform の宣言と仕様の双方向の一致、宣言以外での使用、`floatCount` と宣言型の一致、`texture` / `uniform shader` の禁止、波括弧の対応、定数境界の for ループ、名前の重複なし。SHADOW の uniform 一覧（本体の 3 つを含む） |
 | 実機（API 33 以上） | `app/src/androidTest/.../ui/lighting/ShaderCompileTest.kt` | 全シェーダーを `RuntimeShader` でコンパイルし、全 uniform に `floatCount` 個の値を設定できること。失敗メッセージにシェーダー名と uniform 名を含む |
 
 この環境ではコンパイルできないため、AGSL の文法は CI の実機テストで確かめる。JVM 側の静的検査は、CI より前に uniform の食い違いを検出するためにある。

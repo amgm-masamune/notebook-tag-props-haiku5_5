@@ -20,7 +20,7 @@ object NotebookShaders {
 
     /**
      * 全画面の背景。
-     * ライトは紙色の上に暖白の光を当て（光の当たる側は必ずベース以上の明るさ）、窓の光と木漏れ日を重ねる。
+     * ライトは紙色の上に暖白の光を当て（光の当たる側は必ずベース以上の明るさ）、窓の光（2 枚）と木漏れ日を重ねる。
      * ダークはインクの地に上部中央の卓上灯の溜まりを加算し、四隅を沈める。
      */
     val AMBIENT = ShaderSpec(
@@ -51,11 +51,17 @@ object NotebookShaders {
                 return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
             }
 
-            // 窓ガラス 1 枚。回転後の座標 r で、中心 cx・半幅 hw・半高 hh の柔らかい矩形（縁のぼかし幅 b）
-            float windowPane(float2 r, float cx, float hw, float hh, float b) {
-                float inX = 1.0 - smoothstep(-b, b, abs(r.x - cx) - hw);
-                float inY = 1.0 - smoothstep(-b, b, abs(r.y) - hh);
-                return inX * inY;
+            // 窓ガラス 1 枚。中心 c（画面座標）を基準に -28° 回転し、上下へ 0.16 せん断した平行四辺形。
+            // 半幅・半高は hs（px）、縁のぼかしは片側 b（px）。
+            // 返す x は被覆率（0..1）、y は符号付きの距離（外側が正、px）。
+            float2 windowPane(float2 frag, float2 c, float2 hs, float b) {
+                float2 q = frag - c;
+                float2 r = float2(0.88295 * q.x + 0.46947 * q.y, -0.46947 * q.x + 0.88295 * q.y);
+                r.x -= r.y * 0.16;
+                float2 e = abs(r) - hs;
+                float dist = length(max(e, 0.0)) + min(max(e.x, e.y), 0.0);
+                float cover = (1.0 - smoothstep(-b, b, e.x)) * (1.0 - smoothstep(-b, b, e.y));
+                return float2(cover, dist);
             }
 
             half4 main(float2 fragCoord) {
@@ -70,27 +76,39 @@ object NotebookShaders {
                 float pool = exp(-pow(dist / poolRadius, 2.0));
 
                 // ライト: 暖白へ最大 60% 寄せる（暖白の輝度は紙色より高いので、当たる側は明るくなる）
-                float3 col = mix(uBaseColor.rgb, uKeyColor.rgb, clamp(pool * 0.6 * uIntensity, 0.0, 1.0) * (1.0 - uDark));
+                float3 col = mix(uBaseColor.rgb, uKeyColor.rgb, clamp(pool * 0.35 * uIntensity, 0.0, 1.0) * (1.0 - uDark));
                 // ダーク: 卓上灯の暖色を加算する
                 col += uKeyColor.rgb * pool * 0.20 * uDark;
 
-                // 窓の光（ライトのみ）: 光源方向に沿って約 -28° 回転した座標系の、2 枚の柔らかい平行四辺形
-                float2 q = fragCoord - iResolution * float2(0.34, 0.30);
-                float2 rot = float2(0.88295 * q.x + 0.46947 * q.y, -0.46947 * q.x + 0.88295 * q.y);
-                rot.x -= rot.y * 0.16;
-                float panes = windowPane(rot, -0.1475 * wpx, 0.13 * wpx, 0.275 * hpx, 0.035 * wpx)
-                    + windowPane(rot, 0.1475 * wpx, 0.13 * wpx, 0.275 * hpx, 0.035 * wpx);
+                // 窓の光（ライトのみ）: 窓ガラス 2 枚。枚幅 0.24W・高さ 0.50H・間隔 0.04W。
+                // 各枚は中心 (0.30W, 0.36H) と (0.58W, 0.36H) を基準に -28° 回転し、上下へ 0.16 せん断する
+                float2 hs = float2(0.12 * wpx, 0.25 * hpx);
+                float wb = 0.045 * wpx;
+                float2 paneA = windowPane(fragCoord, iResolution * float2(0.30, 0.36), hs, wb);
+                float2 paneB = windowPane(fragCoord, iResolution * float2(0.58, 0.36), hs, wb);
+                float panes = clamp(paneA.x + paneB.x, 0.0, 1.0);
+                float paneDist = min(paneA.y, paneB.y);
 
-                // 木漏れ日のゆらぎ: 2 層の value noise（スケール 画面幅の 1/3 と 1/7）を、ゆっくり漂わせる
+                // 木漏れ日: 2 層の value noise（スケール W/4 と W/9）の積で、窓の内側の強さを 0.55〜1.0 倍に変調する。
+                // 座標へ時間を足すので、時刻 0 でも模様は一様にならない
                 float w1 = iTime * 6.2831853 / 112.0;
                 float w2 = iTime * 6.2831853 / 224.0;
-                float n1 = valueNoise(fragCoord / (wpx / 3.0) + float2(cos(w1), sin(w1)) * 0.5);
-                float n2 = valueNoise(fragCoord / (wpx / 7.0) + float2(cos(w2), sin(w2)) * 0.7 + 11.0);
-                float flicker = 0.7 + 0.3 * clamp(2.0 * n1 * n2, 0.0, 1.0);
+                float n1 = valueNoise(fragCoord / (wpx / 4.0) + float2(cos(w1), sin(w1)) * 0.5);
+                float n2 = valueNoise(fragCoord / (wpx / 9.0) + float2(cos(w2), sin(w2)) * 0.7 + 11.0);
+                float dapple = 0.55 + 0.45 * clamp(2.0 * n1 * n2, 0.0, 1.0);
 
-                // 窓の光の強さは白方向へ 6.5% を上限に、ゆらぎで変調する（ゆらぎは窓の中だけに見える）
-                float winAmt = clamp(panes, 0.0, 1.0) * flicker * 0.065 * (1.0 - uDark);
-                col = mix(col, float3(1.0), winAmt);
+                // 窓の外側をわずかに沈ませる（暖かい影色 #3A3226 へ 4%。ハローの範囲も含めた外側全体）
+                float3 shadowWarm = float3(0.22745, 0.19608, 0.14902);
+                col = mix(col, shadowWarm, 0.04 * (1.0 - panes) * (1.0 - uDark));
+
+                // 窓の外側へ回り込む朝日の色のハロー（窓の SDF の外側で、0.12W の範囲に 0.12 から 0 へ）
+                float3 morning = float3(1.0, 0.94510, 0.82353); // #FFF1D2
+                float halo = 0.12 * (1.0 - smoothstep(0.0, 0.12 * wpx, max(paneDist, 0.0)));
+                halo *= smoothstep(-0.5, 0.5, paneDist) * (1.0 - uDark);
+                col = mix(col, morning, halo);
+
+                // 窓の内側は金色寄りの朝日の色（#FFF1D2）へ 0.75 * 木漏れ日の変調で寄せる（ダークでは出さない）
+                col = mix(col, morning, panes * dapple * 0.75 * (1.0 - uDark));
 
                 // ダーク: 下からごく弱い寒色のフィル
                 float3 fill = float3(0.118, 0.137, 0.251); // #1E2340
@@ -214,7 +232,11 @@ object NotebookShaders {
         )
     )
 
-    /** 柔らかい影。角丸矩形の SDF から指数減衰させる。乗算済みで返す。内側（要素の下）は描かない。 */
+    /**
+     * 柔らかい影。ずらした影の矩形（uRectCenter / uRectSize）の SDF から指数減衰させる。乗算済みで返す。
+     * 要素本体（ずらす前の矩形: uCasterCenter / uCasterSize / uCasterRadius）の内側だけを抜く。
+     * 影はずらしてあるので、本体の直下で本体に覆われない帯まで抜くと背景が透けて二重の縁に見えるため。
+     */
     val SHADOW = ShaderSpec(
         name = "shadow",
         source = """
@@ -224,6 +246,9 @@ object NotebookShaders {
             uniform float uRadius;
             uniform float uBlur;
             uniform float4 uShadowColor;
+            uniform float2 uCasterCenter;
+            uniform float2 uCasterSize;
+            uniform float uCasterRadius;
 
             float sdRoundRect(float2 p, float2 halfSize, float r) {
                 float2 q = abs(p) - halfSize + r;
@@ -231,19 +256,23 @@ object NotebookShaders {
             }
 
             half4 main(float2 fragCoord) {
+                // ずらした影の矩形の SDF。外側は指数減衰、内側は不透明度のまま
                 float2 p = fragCoord - uRectCenter;
                 float r = min(uRadius, min(uRectSize.x, uRectSize.y) * 0.5);
                 float d = sdRoundRect(p, uRectSize * 0.5, r);
 
-                // 要素の内側（d < 0）は描かない。半透明の面の下で影が透けないように外側だけ描く
-                float outsideWeight = smoothstep(0.0, 1.0, d);
+                // 要素本体（ずらす前）の SDF。本体の内側（dc < 0）だけを抜き、縁は 1.5px でアンチエイリアスする
+                float2 pc = fragCoord - uCasterCenter;
+                float rc = min(uCasterRadius, min(uCasterSize.x, uCasterSize.y) * 0.5);
+                float dc = sdRoundRect(pc, uCasterSize * 0.5, rc);
+                float casterWeight = smoothstep(-0.75, 0.75, dc);
 
                 // 描画領域の端 2px で影を消し、切り口が見えないようにする
                 float2 border = min(fragCoord, iResolution - fragCoord);
                 float edge = smoothstep(0.0, 2.0, min(border.x, border.y));
 
                 float falloff = exp(-pow(max(d, 0.0) / max(uBlur, 0.001), 2.0) * 1.8);
-                float a = uShadowColor.a * falloff * outsideWeight * edge;
+                float a = uShadowColor.a * falloff * casterWeight * edge;
                 return half4(uShadowColor.rgb * a, a);
             }
         """.trimIndent(),
@@ -254,6 +283,9 @@ object NotebookShaders {
             UniformSpec("uRadius", 1),
             UniformSpec("uBlur", 1),
             UniformSpec("uShadowColor", 4),
+            UniformSpec("uCasterCenter", 2),
+            UniformSpec("uCasterSize", 2),
+            UniformSpec("uCasterRadius", 1),
         )
     )
 

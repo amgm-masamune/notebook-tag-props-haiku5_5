@@ -128,6 +128,14 @@ fun shaderFrame(elementSize: Size, expansion: Offset, offset: Offset = Offset.Ze
     return ShaderFrame(topLeft, size, rectCenter)
 }
 
+/**
+ * 影シェーダーの描画枠の中での、ずらす前の要素本体（caster）の中心。
+ * 枠は要素を [expansion] ぶん外へ広げたものなので、要素中心を拡張量ぶん移した点になる。
+ * 影のずれ（offset）は含まない。本体の大きさは要素の大きさ（[elementSize]）そのまま。
+ */
+fun casterCenterInFrame(elementSize: Size, expansion: Offset): Offset =
+    Offset(elementSize.width / 2f + expansion.x, elementSize.height / 2f + expansion.y)
+
 /** 画面座標の点を、要素ローカル座標（要素の左上が原点）へ変換する。要素の外の点でもよい。 */
 fun toElementLocal(screenPoint: Offset, elementTopLeft: Offset): Offset =
     Offset(screenPoint.x - elementTopLeft.x, screenPoint.y - elementTopLeft.y)

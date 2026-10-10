@@ -95,6 +95,18 @@ class ShaderSpecLintTest {
     }
 
     @Test
+    fun `SHADOW は要素本体（caster）の uniform を持つ`() {
+        val names = NotebookShaders.SHADOW.uniforms.map { it.name }.toSet()
+        assertEquals(
+            setOf(
+                "iResolution", "uRectCenter", "uRectSize", "uRadius", "uBlur", "uShadowColor",
+                "uCasterCenter", "uCasterSize", "uCasterRadius"
+            ),
+            names
+        )
+    }
+
+    @Test
     fun `uniform 名と shader 名に重複が無い`() {
         NotebookShaders.all.forEach { spec ->
             val names = spec.uniforms.map { it.name }

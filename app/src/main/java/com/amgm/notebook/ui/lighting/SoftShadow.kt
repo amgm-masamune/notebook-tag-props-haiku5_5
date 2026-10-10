@@ -138,17 +138,23 @@ private fun DrawScope.drawShadowLayer(
     cornerPx: Float,
     color: Color
 ) {
+    val expansion = shadowExpansion(blurPx, offset)
     val frame = shaderFrame(
         elementSize = elementSize,
-        expansion = shadowExpansion(blurPx, offset),
+        expansion = expansion,
         offset = offset
     )
+    // 要素本体（ずらす前）。影のずれには依らず、枠の中で要素の中心に当たる
+    val caster = casterCenterInFrame(elementSize, expansion)
     shader.setUniform("iResolution", frame.size)
     shader.setUniform("uRectCenter", frame.rectCenter)
     shader.setUniform("uRectSize", elementSize)
     shader.setUniform("uRadius", cornerPx)
     shader.setUniform("uBlur", blurPx)
     shader.setUniform("uShadowColor", color)
+    shader.setUniform("uCasterCenter", caster)
+    shader.setUniform("uCasterSize", elementSize)
+    shader.setUniform("uCasterRadius", cornerPx)
     translate(left = frame.topLeft.x, top = frame.topLeft.y) {
         drawRect(brush, size = frame.size)
     }

@@ -89,6 +89,31 @@ class LightComponentMathTest {
         )
     }
 
+    // ---- casterCenterInFrame ----
+
+    @Test
+    fun `本体の中心は枠の中で要素の中心を拡張量ぶん移したもの`() {
+        assertOffset(Offset(60f, 45f), casterCenterInFrame(Size(100f, 50f), Offset(10f, 20f)))
+    }
+
+    @Test
+    fun `本体の中心は枠の原点を足すと要素の中心へ戻る（拡張量に依らない）`() {
+        val size = Size(100f, 50f)
+        listOf(Offset(0f, 0f), Offset(10f, 20f), Offset(36f, 3f)).forEach { expansion ->
+            val frame = shaderFrame(size, expansion)
+            assertOffset(Offset(50f, 25f), casterCenterInFrame(size, expansion) + frame.topLeft)
+        }
+    }
+
+    @Test
+    fun `本体の中心は影のずれで動かず、形の中心からずれ量を引いたものに一致する`() {
+        val size = Size(100f, 50f)
+        val expansion = Offset(10f, 20f)
+        val offset = Offset(5f, -3f)
+        val frame = shaderFrame(size, expansion, offset)
+        assertOffset(casterCenterInFrame(size, expansion), frame.rectCenter - offset)
+    }
+
     // ---- contactShadowAlpha ----
 
     @Test
