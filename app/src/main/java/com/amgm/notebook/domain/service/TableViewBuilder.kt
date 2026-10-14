@@ -14,7 +14,7 @@ import com.amgm.notebook.domain.rules.TagHierarchy
 
 data class TableColumn(val name: PropertyName, val type: PropertyType, val required: Boolean)
 
-/** cells は columns と同順・同数。値が無ければ Empty。 */
+/** cells は columns と同順・同数。値が無ければ Null。Null と Text("") はどちらも UI では空欄表示（[PropertyValue.isUnset]）。 */
 data class TableRow(val noteId: NoteId, val title: String, val cells: List<PropertyValue>)
 
 data class TableView(
@@ -59,7 +59,7 @@ class TableViewBuilder {
             TableRow(
                 noteId = note.id,
                 title = note.title,
-                cells = columns.map { column -> note.properties[column.name] ?: PropertyValue.Empty }
+                cells = columns.map { column -> note.properties[column.name] ?: PropertyValue.Null }
             )
         }
         return TableView(tag, columns, rows, schema.conflicts)
@@ -75,15 +75,15 @@ class TableViewBuilder {
                 is TableSortKey.Title ->
                     a.title.compareTo(b.title, ignoreCase = true) * direction
                 is TableSortKey.Property -> {
-                    val va = a.properties[key.name] ?: PropertyValue.Empty
-                    val vb = b.properties[key.name] ?: PropertyValue.Empty
-                    val emptyA = va is PropertyValue.Empty
-                    val emptyB = vb is PropertyValue.Empty
+                    val va = a.properties[key.name] ?: PropertyValue.Null
+                    val vb = b.properties[key.name] ?: PropertyValue.Null
+                    val emptyA = va is PropertyValue.Null // Text("") は空文字として通常比較
+                    val emptyB = vb is PropertyValue.Null
                     when {
                         emptyA && emptyB -> 0
-                        emptyA -> 1 // Empty は昇順・降順どちらでも末尾
+                        emptyA -> 1 // Null は昇順・降順どちらでも末尾
                         emptyB -> -1
-                        else -> compareNonEmpty(va, vb) * direction
+                        else -> compareNonNull(va, vb) * direction
                     }
                 }
             }
@@ -91,8 +91,8 @@ class TableViewBuilder {
         return primary.then(byUpdatedDesc)
     }
 
-    /** Empty 以外の値同士の比較。型が異なる場合は型の種類順。 */
-    private fun compareNonEmpty(a: PropertyValue, b: PropertyValue): Int = when {
+    /** Null 以外の値同士の比較。型が異なる場合は型の種類順。 */
+    private fun compareNonNull(a: PropertyValue, b: PropertyValue): Int = when {
         a is PropertyValue.Text && b is PropertyValue.Text -> a.value.compareTo(b.value, ignoreCase = true)
         a is PropertyValue.Number && b is PropertyValue.Number -> a.value.compareTo(b.value)
         a is PropertyValue.Bool && b is PropertyValue.Bool -> a.value.compareTo(b.value)
@@ -105,7 +105,7 @@ class TableViewBuilder {
         is PropertyValue.Number -> 1
         is PropertyValue.Bool -> 2
         is PropertyValue.Date -> 3
-        is PropertyValue.Empty -> 4
+        is PropertyValue.Null -> 4
         is PropertyValue.NoteRefs -> 5
     }
 }

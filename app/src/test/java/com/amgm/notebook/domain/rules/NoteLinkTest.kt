@@ -11,6 +11,7 @@ import com.amgm.notebook.domain.tagMap
 import com.amgm.notebook.domain.tagOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -41,11 +42,10 @@ class NoteLinkTest {
     }
 
     @Test
-    fun `matchesはNoteLink型にNoteRefsとEmptyだけ一致する`() {
+    fun `matchesはNoteLink型にNoteRefsとNullだけ一致する`() {
         val type = PropertyType.NoteLink(TagId("t"))
         assertTrue(PropertyValue.NoteRefs(ids("a")).matches(type))
-        assertTrue(PropertyValue.NoteRefs(emptyList()).matches(PropertyType.NoteLink(null)))
-        assertTrue(PropertyValue.Empty.matches(type))
+        assertTrue(PropertyValue.Null.matches(type))
         assertFalse(PropertyValue.Text("a").matches(type))
         assertFalse(PropertyValue.Number(1.0).matches(type))
         assertFalse(PropertyValue.NoteRefs(ids("a")).matches(PropertyType.Text))
@@ -70,7 +70,7 @@ class NoteLinkTest {
         val missing = validate(null, required = true)
         assertFalse(missing.hasErrors)
         assertEquals(listOf<ValidationIssue>(ValidationIssue.RequiredMissing(PropertyName("author"))), missing.warnings)
-        assertEquals(1, validate(PropertyValue.Empty, required = true).warnings.size)
+        assertEquals(1, validate(PropertyValue.Null, required = true).warnings.size)
     }
 
     @Test
@@ -100,5 +100,12 @@ class NoteLinkTest {
         val schema = EffectivePropertyResolver(tagMap(p1, p2, child)).resolve(TagId("c"))
         assertEquals(1, schema.conflicts.size)
         assertTrue(schema.definitions.isEmpty())
+    }
+
+    @Test
+    fun `空のNoteRefsは作れずofNoteRefsはNullに正規化する`() {
+        assertEquals(PropertyValue.Null, PropertyValue.ofNoteRefs(emptyList()))
+        assertEquals(PropertyValue.NoteRefs(ids("a")), PropertyValue.ofNoteRefs(ids("a", "a")))
+        assertThrows(IllegalArgumentException::class.java) { PropertyValue.NoteRefs(emptyList()) }
     }
 }

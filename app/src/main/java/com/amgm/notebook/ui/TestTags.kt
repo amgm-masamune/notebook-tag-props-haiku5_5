@@ -90,4 +90,16 @@ object TestTags {
     const val TAG_TABLE_EMPTY = "tag_table_empty"
     /** 表ビューの「ノートを追加」FAB。 */
     const val TAG_TABLE_ADD_NOTE = "tag_table_add_note"
+
+    // 表タブ (v3)
+    const val TABLE_INDEX_LIST = "table_index_list"
+    const val TABLE_INDEX_EMPTY = "table_index_empty"
+    /** 表タブの行。末尾に `TagId.value`。 */
+    const val TABLE_INDEX_ITEM_PREFIX = "table_index_item_"
+
+    // ボトムナビゲーション (v3)
+    const val BOTTOM_NAV = "bottom_nav"
+    const val BOTTOM_NAV_NOTES = "bottom_nav_notes"
+    const val BOTTOM_NAV_TAGS = "bottom_nav_tags"
+    const val BOTTOM_NAV_TABLES = "bottom_nav_tables"
 }

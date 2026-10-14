@@ -75,19 +75,19 @@ class NoteValidatorTest {
     }
 
     @Test
-    fun `Emptyの必須プロパティも未入力として警告される`() {
-        val result = validate("Book", mapOf("price" to PropertyValue.Empty))
+    fun `Nullの必須プロパティも未入力として警告される`() {
+        val result = validate("Book", mapOf("price" to PropertyValue.Null))
         assertEquals(listOf<ValidationIssue>(ValidationIssue.RequiredMissing(PropertyName("price"))), result.issues)
     }
 
     @Test
-    fun `Emptyは型検証の対象外`() {
+    fun `Nullは型検証の対象外`() {
         val result = validate(
             "Book",
             mapOf(
                 "price" to PropertyValue.Number(1.0),
-                "author" to PropertyValue.Empty,
-                "read" to PropertyValue.Empty
+                "author" to PropertyValue.Null,
+                "read" to PropertyValue.Null
             )
         )
         assertTrue(result.issues.isEmpty())
@@ -141,5 +141,21 @@ class NoteValidatorTest {
         val note = noteOf("n", tags = listOf("Book"), props = mapOf("published" to PropertyValue.Text("昨日")))
         val result = validator.validate(note, resolver.resolve(TagId("Book")))
         assertEquals(PropertyName("published"), (result.errors.single() as ValidationIssue.TypeMismatch).name)
+    }
+
+    @Test
+    fun `必須はNullも空文字Textも未入力として警告されるが空白文字は入力扱い`() {
+        val price = PropertyName("price")
+        val nullResult = validate("Book", mapOf("price" to PropertyValue.Null))
+        assertEquals(listOf<ValidationIssue>(ValidationIssue.RequiredMissing(price)), nullResult.issues)
+        val emptyTextResult = validate("Book", mapOf("price" to PropertyValue.Text("")))
+        assertEquals(listOf<ValidationIssue>(ValidationIssue.RequiredMissing(price)), emptyTextResult.issues)
+        assertFalse(emptyTextResult.hasErrors)
+        val authorTags = tagMap(tagOf("Req", defs = listOf(defOf("author", PropertyType.Text, required = true))))
+        val note = noteOf("n", tags = listOf("Req"), props = mapOf("author" to PropertyValue.Text("")))
+        val result = validator.validate(note, EffectivePropertyResolver(authorTags).resolveForTags(note.tagIds))
+        assertEquals(1, result.warnings.size)
+        val filled = noteOf("n", tags = listOf("Req"), props = mapOf("author" to PropertyValue.Text("x")))
+        assertTrue(validator.validate(filled, EffectivePropertyResolver(authorTags).resolveForTags(filled.tagIds)).issues.isEmpty())
     }
 }

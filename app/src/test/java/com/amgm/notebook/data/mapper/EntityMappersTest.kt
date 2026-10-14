@@ -33,7 +33,7 @@ class EntityMappersTest {
             PropertyName("price") to PropertyValue.Number(12.5),
             PropertyName("due") to PropertyValue.Date(LocalDate.of(2024, 5, 6)),
             PropertyName("memo") to PropertyValue.Text("x"),
-            PropertyName("none") to PropertyValue.Empty
+            PropertyName("none") to PropertyValue.Null
         ),
         createdAt = Instant.ofEpochMilli(1_700_000_000_123L),
         updatedAt = Instant.ofEpochMilli(1_700_000_999_456L)
@@ -62,17 +62,17 @@ class EntityMappersTest {
         val byName = sampleNote().toPropertyEntities().associateBy { it.name }
         assertEquals(NotePropertyEntity("n1", "price", "NUMBER", "12.5"), byName["price"])
         assertEquals(NotePropertyEntity("n1", "due", "DATE", "2024-05-06"), byName["due"])
-        assertEquals(NotePropertyEntity("n1", "none", "EMPTY", ""), byName["none"])
+        assertEquals(NotePropertyEntity("n1", "none", "NULL", ""), byName["none"])
     }
 
     @Test
-    fun `復元できないプロパティ値はEmptyになる`() {
+    fun `復元できないプロパティ値はNullになる`() {
         val restored = NoteWithRelations(
             note = NoteEntity("n", "t", "b", 0L, 0L),
             tagLinks = emptyList<NoteTagEntity>(),
             properties = listOf(NotePropertyEntity("n", "p", "NUMBER", "oops"))
         ).toDomain()
-        assertEquals(PropertyValue.Empty, restored.properties[PropertyName("p")])
+        assertEquals(PropertyValue.Null, restored.properties[PropertyName("p")])
     }
 
     @Test

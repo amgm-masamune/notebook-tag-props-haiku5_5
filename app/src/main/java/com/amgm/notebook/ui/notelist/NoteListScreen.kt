@@ -2,6 +2,8 @@ package com.amgm.notebook.ui.notelist
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -9,32 +11,28 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,17 +41,27 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.amgm.notebook.domain.model.NoteId
+import com.amgm.notebook.domain.model.TagId
 import com.amgm.notebook.ui.TestTags
+import com.amgm.notebook.ui.components.EmptyState
+import com.amgm.notebook.ui.components.LargeTitleHeader
+import com.amgm.notebook.ui.components.NotebookCard
+import com.amgm.notebook.ui.components.PillSearchField
+import com.amgm.notebook.ui.components.TagChip
+import com.amgm.notebook.ui.components.neutralTagColor
+import com.amgm.notebook.ui.theme.NotebookDimens
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 private val DateFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm").withZone(ZoneId.systemDefault())
+    DateTimeFormatter.ofPattern("yyyy/MM/dd").withZone(ZoneId.systemDefault())
+
+/** 一覧のカードに載せるタグチップの最大数（超過分は「+n」）。 */
+private const val MAX_VISIBLE_TAGS = 3
 
 @Composable
 fun NoteListScreen(viewModel: NoteListViewModel, snackbarHostState: SnackbarHostState) {
@@ -70,13 +78,12 @@ fun NoteListScreen(viewModel: NoteListViewModel, snackbarHostState: SnackbarHost
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun NoteListContent(
     state: NoteListUiState,
     snackbarHostState: SnackbarHostState,
     onQueryChange: (String) -> Unit,
-    onTagFilterChange: (com.amgm.notebook.domain.model.TagId?) -> Unit,
+    onTagFilterChange: (TagId?) -> Unit,
     onNoteClick: (NoteId) -> Unit,
     onCreateNoteClick: () -> Unit,
     onTagsClick: () -> Unit,
@@ -85,24 +92,21 @@ private fun NoteListContent(
     var deleteTarget by remember { mutableStateOf<NoteListItem?>(null) }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("ノート") },
-                actions = {
-                    TextButton(
-                        onClick = onTagsClick,
-                        modifier = Modifier.testTag(TestTags.NOTE_LIST_TAGS_BUTTON)
-                    ) { Text("タグ") }
-                }
-            )
-        },
+        containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
-            FloatingActionButton(
+            ExtendedFloatingActionButton(
                 onClick = onCreateNoteClick,
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text("新規ノート") },
+                shape = CircleShape,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                elevation = FloatingActionButtonDefaults.elevation(
+                    defaultElevation = 2.dp,
+                    pressedElevation = 1.dp
+                ),
                 modifier = Modifier.testTag(TestTags.NOTE_LIST_FAB)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "新規ノート")
-            }
+            )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
@@ -111,35 +115,35 @@ private fun NoteListContent(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            OutlinedTextField(
+            LargeTitleHeader(
+                title = "ノート",
+                subtitle = if (state.isLoading) null else "${state.items.size} 件のノート",
+                actions = {
+                    TextButton(
+                        onClick = onTagsClick,
+                        modifier = Modifier.testTag(TestTags.NOTE_LIST_TAGS_BUTTON)
+                    ) { Text("タグ") }
+                }
+            )
+            PillSearchField(
                 value = state.query,
                 onValueChange = onQueryChange,
-                singleLine = true,
-                placeholder = { Text("タイトル・本文を検索") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (state.query.isNotEmpty()) {
-                        IconButton(onClick = { onQueryChange("") }) {
-                            Icon(Icons.Default.Close, contentDescription = "検索をクリア")
-                        }
-                    }
-                },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                placeholder = "タイトル・本文を検索",
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(horizontal = NotebookDimens.ScreenPadding, vertical = 8.dp)
                     .testTag(TestTags.NOTE_LIST_SEARCH)
             )
             if (state.availableTags.isNotEmpty()) {
                 LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    contentPadding = PaddingValues(horizontal = NotebookDimens.ScreenPadding),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(state.availableTags, key = { it.id.value }) { tag ->
-                        FilterChip(
+                        TagChip(
+                            label = tag.name,
                             selected = state.filterTagId == tag.id,
                             onClick = { onTagFilterChange(tag.id) },
-                            label = { Text(tag.name) },
+                            showDot = true,
                             modifier = Modifier.testTag(TestTags.NOTE_LIST_FILTER_CHIP_PREFIX + tag.id.value)
                         )
                     }
@@ -148,22 +152,25 @@ private fun NoteListContent(
             when {
                 state.isLoading -> CenteredProgress()
                 state.items.isEmpty() -> {
-                    Text(
-                        text = if (state.query.isNotEmpty() || state.filterTagId != null) {
+                    val filtering = state.query.isNotEmpty() || state.filterTagId != null
+                    EmptyState(
+                        icon = if (filtering) Icons.Default.Search else Icons.Default.Edit,
+                        message = if (filtering) {
                             "該当するノートがありません"
                         } else {
                             "ノートがありません。右下の＋ボタンから作成できます"
                         },
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .padding(24.dp)
-                            .testTag(TestTags.NOTE_LIST_EMPTY)
+                        modifier = Modifier.testTag(TestTags.NOTE_LIST_EMPTY)
                     )
                 }
                 else -> {
                     LazyColumn(
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 96.dp),
+                        contentPadding = PaddingValues(
+                            start = NotebookDimens.ScreenPadding,
+                            end = NotebookDimens.ScreenPadding,
+                            top = 16.dp,
+                            bottom = 96.dp
+                        ),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
@@ -214,54 +221,92 @@ private fun CenteredProgress() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun NoteCard(item: NoteListItem, onClick: () -> Unit, onDeleteClick: () -> Unit) {
-    Card(
+    val excerpt = remember(item.snippet, item.title) { plainExcerpt(item.snippet, item.title) }
+    NotebookCard(
         onClick = onClick,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier
             .fillMaxWidth()
             .testTag(TestTags.NOTE_LIST_ITEM_PREFIX + item.id.value)
     ) {
-        Row(
-            modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = item.title.ifBlank { "(無題)" },
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (item.snippet.isNotBlank()) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = item.snippet,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Spacer(Modifier.height(6.dp))
-                val tags = item.tagNames.joinToString("  ") { "#$it" }
-                Text(
-                    text = if (tags.isEmpty()) DateFormatter.format(item.updatedAt)
-                    else "$tags  ·  ${DateFormatter.format(item.updatedAt)}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+        Row(verticalAlignment = Alignment.Top) {
+            Text(
+                text = item.title.ifBlank { "(無題)" },
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(top = 6.dp)
+            )
             IconButton(
                 onClick = onDeleteClick,
-                modifier = Modifier.testTag(TestTags.NOTE_LIST_DELETE_PREFIX + item.id.value)
+                modifier = Modifier
+                    .size(36.dp)
+                    .testTag(TestTags.NOTE_LIST_DELETE_PREFIX + item.id.value)
             ) {
-                Icon(Icons.Default.Delete, contentDescription = "削除")
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "削除",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
+        if (excerpt.isNotBlank()) {
+            Text(
+                text = excerpt,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                item.tagNames.take(MAX_VISIBLE_TAGS).forEach { name -> TagChip(label = name) }
+                val rest = item.tagNames.size - MAX_VISIBLE_TAGS
+                if (rest > 0) TagChip(label = "+$rest", tagColor = neutralTagColor())
+            }
+            Text(
+                text = DateFormatter.format(item.updatedAt),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 8.dp)
+            )
+        }
     }
+}
+
+private val HeadingMarker = Regex("^#{1,6}\\s*")
+private val BlockMarker = Regex("^(>\\s*)+|^\\s*([-*+]|\\d+[.)])\\s+|\\[[ xX]\\]\\s*")
+private val ImageSyntax = Regex("!\\[([^\\]]*)]\\([^)]*\\)")
+private val LinkSyntax = Regex("\\[([^\\]]*)]\\([^)]*\\)")
+private val InlineMarks = Regex("(\\*\\*|__|~~|[*`])")
+
+/**
+ * 本文の先頭付近から、Markdown 記号を除いた 1 行のプレーンテキストを取り出す。
+ * タイトルと同じ行（H1 自動同期の見出し）とコードフェンス行は飛ばす。
+ */
+internal fun plainExcerpt(body: String, title: String): String {
+    val titleText = title.trim()
+    val lines = body.lines().map { line ->
+        line.trim()
+            .replace(HeadingMarker, "")
+            .replace(BlockMarker, "")
+            .replace(ImageSyntax, "$1")
+            .replace(LinkSyntax, "$1")
+            .replace(InlineMarks, "")
+            .trim()
+    }
+    val candidates = lines.filter { it.isNotEmpty() && !it.startsWith("---") }
+    return candidates.firstOrNull { it != titleText } ?: ""
 }

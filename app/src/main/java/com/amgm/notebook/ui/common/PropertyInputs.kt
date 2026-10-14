@@ -10,9 +10,15 @@ import kotlin.math.abs
 /** プロパティ入力文字列と [PropertyValue] の相互変換、表示用整形（純Kotlin）。 */
 object PropertyInputs {
 
-    /** 入力を型に従って解釈する。空白のみは [PropertyValue.Empty]。解釈不能なら null。 */
+    /**
+     * 入力を型に従って解釈する。解釈不能なら null。
+     * - 文字列型: 空でも空白のみでも [PropertyValue.Text] として保持する（空は `Text("")`）。
+     * - 数値・日付・真偽: 空白のみは [PropertyValue.Null]（空文字は無効な値のため）。
+     * - NoteLink: 参照なしは [PropertyValue.Null]。
+     */
     fun parse(type: PropertyType, input: String): PropertyValue? {
-        if (input.isBlank()) return PropertyValue.Empty
+        if (type == PropertyType.Text) return PropertyValue.Text(input)
+        if (input.isBlank()) return PropertyValue.Null
         return when (type) {
             PropertyType.Text -> PropertyValue.Text(input)
             PropertyType.Number -> {
@@ -27,7 +33,7 @@ object PropertyInputs {
             // 通常はノート選択ピッカーで組み立てる。文字列から来た場合はカンマ区切りの ID として解釈する
             is PropertyType.NoteLink -> {
                 val ids = input.split(',').map { it.trim() }.filter { it.isNotEmpty() }.map { NoteId(it) }
-                if (ids.isEmpty()) PropertyValue.Empty else PropertyValue.NoteRefs.of(ids)
+                PropertyValue.ofNoteRefs(ids)
             }
             PropertyType.Date -> try {
                 PropertyValue.Date(LocalDate.parse(input.trim()))
@@ -44,7 +50,7 @@ object PropertyInputs {
         is PropertyValue.Bool -> if (value.value) "true" else "false"
         is PropertyValue.Date -> value.value.toString()
         is PropertyValue.NoteRefs -> value.ids.joinToString(", ") { it.value }
-        is PropertyValue.Empty -> ""
+        is PropertyValue.Null -> ""
     }
 
     /** 表などの表示用文字列。 */
@@ -56,14 +62,14 @@ object PropertyInputs {
     fun formatNumber(d: Double): String =
         if (d == Math.rint(d) && abs(d) < 1e15) d.toLong().toString() else d.toString()
 
-    /** 自由プロパティの型を値から推定する（Empty は Text）。 */
+    /** 自由プロパティの型を値から推定する（Null は Text）。 */
     fun inferType(value: PropertyValue): PropertyType = when (value) {
         is PropertyValue.Text -> PropertyType.Text
         is PropertyValue.Number -> PropertyType.Number
         is PropertyValue.Bool -> PropertyType.Boolean
         is PropertyValue.Date -> PropertyType.Date
         is PropertyValue.NoteRefs -> PropertyType.NoteLink(null)
-        is PropertyValue.Empty -> PropertyType.Text
+        is PropertyValue.Null -> PropertyType.Text
     }
 
     val allTypes: List<PropertyType> =

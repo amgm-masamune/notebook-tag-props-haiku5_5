@@ -1,5 +1,10 @@
 package com.amgm.notebook.ui.navigation
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
@@ -21,6 +26,7 @@ import com.amgm.notebook.ui.common.UiEvent
 import com.amgm.notebook.ui.common.noteEditViewModelFactory
 import com.amgm.notebook.ui.common.noteListViewModelFactory
 import com.amgm.notebook.ui.common.tagEditViewModelFactory
+import com.amgm.notebook.ui.common.tableIndexViewModelFactory
 import com.amgm.notebook.ui.common.tagListViewModelFactory
 import com.amgm.notebook.ui.common.tagTableViewModelFactory
 import com.amgm.notebook.ui.noteedit.NoteEditScreen
@@ -29,6 +35,8 @@ import com.amgm.notebook.ui.notelist.NoteListScreen
 import com.amgm.notebook.ui.notelist.NoteListViewModel
 import com.amgm.notebook.ui.tagedit.TagEditScreen
 import com.amgm.notebook.ui.tagedit.TagEditViewModel
+import com.amgm.notebook.ui.tableindex.TableIndexScreen
+import com.amgm.notebook.ui.tableindex.TableIndexViewModel
 import com.amgm.notebook.ui.taglist.TagListScreen
 import com.amgm.notebook.ui.taglist.TagListViewModel
 import com.amgm.notebook.ui.tagtable.TagTableScreen
@@ -40,7 +48,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun NotebookNavHost(
     container: AppContainer,
-    navController: NavHostController = rememberNavController()
+    navController: NavHostController = rememberNavController(),
+    modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -48,7 +57,20 @@ fun NotebookNavHost(
     NavHost(
         navController = navController,
         startDestination = Routes.NOTE_LIST,
-        modifier = Modifier.fillMaxSize()
+        modifier = modifier.fillMaxSize(),
+        // 画面遷移は fade + 小さなスライド。戻るときは逆向き
+        enterTransition = {
+            fadeIn(tween(220)) + slideInHorizontally(tween(260)) { fullWidth -> fullWidth / 12 }
+        },
+        exitTransition = {
+            fadeOut(tween(160)) + slideOutHorizontally(tween(260)) { fullWidth -> -fullWidth / 16 }
+        },
+        popEnterTransition = {
+            fadeIn(tween(220)) + slideInHorizontally(tween(260)) { fullWidth -> -fullWidth / 16 }
+        },
+        popExitTransition = {
+            fadeOut(tween(160)) + slideOutHorizontally(tween(260)) { fullWidth -> fullWidth / 12 }
+        }
     ) {
         composable(Routes.NOTE_LIST) {
             val vm: NoteListViewModel = viewModel(
@@ -81,6 +103,14 @@ fun NotebookNavHost(
             )
             EventEffect(vm.events, navController, snackbarHostState, scope)
             NoteEditScreen(vm, snackbarHostState)
+        }
+        composable(Routes.TABLES) {
+            val vm: TableIndexViewModel = viewModel(
+                key = Routes.TABLES,
+                factory = tableIndexViewModelFactory(container)
+            )
+            EventEffect(vm.events, navController, snackbarHostState, scope)
+            TableIndexScreen(vm, snackbarHostState)
         }
         composable(Routes.TAG_LIST) {
             val vm: TagListViewModel = viewModel(

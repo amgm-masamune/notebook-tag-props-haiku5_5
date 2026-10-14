@@ -4,9 +4,9 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,16 +15,16 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,42 +32,73 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.amgm.notebook.domain.model.NoteId
+import com.amgm.notebook.domain.model.PropertyType
 import com.amgm.notebook.domain.model.PropertyValue
 import com.amgm.notebook.domain.service.TableSort
 import com.amgm.notebook.domain.service.TableSortKey
 import com.amgm.notebook.domain.service.TableView
 import com.amgm.notebook.ui.TestTags
 import com.amgm.notebook.ui.common.PropertyInputs
+import com.amgm.notebook.ui.components.EmptyState
+import com.amgm.notebook.ui.components.LargeTitleHeader
+import com.amgm.notebook.ui.theme.NotebookDimens
+import com.amgm.notebook.ui.theme.extraColors
 
 private val TitleColumnWidth: Dp = 150.dp
 private val CellWidth: Dp = 130.dp
 private val RowHeight: Dp = 52.dp
+private val HeaderHeight: Dp = 48.dp
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TagTableScreen(viewModel: TagTableViewModel, snackbarHostState: SnackbarHostState) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(if (state.tagName.isEmpty()) "表ビュー" else "${state.tagName} の表") },
+        containerColor = MaterialTheme.colorScheme.background,
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = viewModel::onAddNoteClick,
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text("ノートを追加") },
+                shape = CircleShape,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                elevation = FloatingActionButtonDefaults.elevation(
+                    defaultElevation = 2.dp,
+                    pressedElevation = 1.dp
+                ),
+                modifier = Modifier.testTag(TestTags.TAG_TABLE_ADD_NOTE)
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { innerPadding ->
+        val table = state.table
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            LargeTitleHeader(
+                title = if (state.tagName.isEmpty()) "表ビュー" else "${state.tagName} の表",
+                subtitle = table?.let { "${it.rows.size} 件のノート" },
                 navigationIcon = {
                     IconButton(
                         onClick = viewModel::onBackClick,
@@ -81,71 +112,57 @@ fun TagTableScreen(viewModel: TagTableViewModel, snackbarHostState: SnackbarHost
                     ) { Icon(Icons.Default.Edit, contentDescription = "タグを編集") }
                 }
             )
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = viewModel::onAddNoteClick,
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("ノートを追加") },
-                modifier = Modifier.testTag(TestTags.TAG_TABLE_ADD_NOTE)
-            )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { innerPadding ->
-        val table = state.table
-        when {
-            state.isLoading || (table == null && state.tagFound) -> Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) { CircularProgressIndicator() }
+            when {
+                state.isLoading || (table == null && state.tagFound) -> Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) { CircularProgressIndicator() }
 
-            table == null -> Unit
+                table == null -> Unit
 
-            else -> Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
-                table.conflicts.forEach { conflict ->
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "「${conflict.name.value}」は継承元で型が衝突しているため列に表示されません",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
-                            modifier = Modifier.padding(12.dp)
+                else -> {
+                    table.conflicts.forEach { conflict ->
+                        Surface(
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            shape = RoundedCornerShape(NotebookDimens.InputRadius),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = NotebookDimens.ScreenPadding, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "「${conflict.name.value}」は継承元で型が衝突しているため列に表示されません",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+                    }
+                    if (table.rows.isEmpty()) {
+                        EmptyState(
+                            icon = Icons.Default.Add,
+                            message = "このタグのノートはまだありません",
+                            modifier = Modifier.testTag(TestTags.TAG_TABLE_EMPTY)
                         )
                     }
-                }
-                if (table.rows.isEmpty()) {
-                    Text(
-                        text = "このタグのノートはまだありません",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .padding(24.dp)
-                            .testTag(TestTags.TAG_TABLE_EMPTY)
+                    TableContent(
+                        table = table,
+                        sort = state.sort,
+                        noteTitles = state.noteTitles,
+                        onSortChange = viewModel::onSortChange,
+                        onRowClick = viewModel::onRowClick
                     )
                 }
-                TableContent(
-                    table = table,
-                    sort = state.sort,
-                    noteTitles = state.noteTitles,
-                    onSortChange = viewModel::onSortChange,
-                    onRowClick = viewModel::onRowClick
-                )
             }
         }
     }
 }
 
+/**
+ * 横スクロール可能な表。タイトル列は横スクロールしても固定し、ヘッダ行は縦スクロールしても残る。
+ * 行は交互の薄い背景、数値は右寄せ。
+ */
 @Composable
 private fun TableContent(
     table: TableView,
@@ -156,19 +173,20 @@ private fun TableContent(
 ) {
     val horizontal = rememberScrollState()
     val vertical = rememberScrollState()
-    val surface = MaterialTheme.colorScheme.surface
-    val headerColor = MaterialTheme.colorScheme.surfaceVariant
+    val scheme = MaterialTheme.colorScheme
+    val headerColor = scheme.surfaceVariant
+    val baseColor = scheme.surface
+    val altColor = MaterialTheme.extraColors.rowAlt
 
     Column(
         modifier = Modifier
-            .fillMaxWidth()
+            .fillMaxSize()
             .clipToBounds()
-            .verticalScroll(vertical)
             .horizontalScroll(horizontal)
             .testTag(TestTags.TAG_TABLE)
     ) {
-        // ヘッダ行
-        Row(modifier = Modifier.height(RowHeight)) {
+        // ヘッダ行（縦スクロールの外に置き、常に見える）
+        Row(modifier = Modifier.height(HeaderHeight)) {
             HeaderCell(
                 label = "タイトル",
                 key = TableSortKey.Title,
@@ -177,6 +195,7 @@ private fun TableContent(
                 width = TitleColumnWidth,
                 background = headerColor,
                 pinned = horizontal,
+                numeric = false,
                 onClick = onSortChange
             )
             table.columns.forEach { column ->
@@ -188,54 +207,66 @@ private fun TableContent(
                     width = CellWidth,
                     background = headerColor,
                     pinned = null,
+                    numeric = column.type == PropertyType.Number,
                     onClick = onSortChange
                 )
             }
         }
-        HorizontalDivider()
-        table.rows.forEach { row ->
-            Row(
-                modifier = Modifier
-                    .height(RowHeight)
-                    .clickable { onRowClick(row.noteId) }
-                    .testTag(TestTags.TAG_TABLE_ROW_PREFIX + row.noteId.value),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
+        HorizontalDivider(color = scheme.outlineVariant)
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .verticalScroll(vertical)
+        ) {
+            table.rows.forEachIndexed { index, row ->
+                val rowColor = if (index % 2 == 0) baseColor else altColor
+                Row(
                     modifier = Modifier
-                        .width(TitleColumnWidth)
                         .height(RowHeight)
-                        .offset { IntOffset(horizontal.value, 0) }
-                        .zIndex(1f)
-                        .background(surface)
-                        .padding(horizontal = 12.dp),
-                    contentAlignment = Alignment.CenterStart
+                        .background(rowColor)
+                        .clickable { onRowClick(row.noteId) }
+                        .testTag(TestTags.TAG_TABLE_ROW_PREFIX + row.noteId.value),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = row.title.ifBlank { "(無題)" },
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                row.cells.forEach { cell ->
                     Box(
                         modifier = Modifier
-                            .width(CellWidth)
-                            .padding(horizontal = 12.dp),
+                            .width(TitleColumnWidth)
+                            .height(RowHeight)
+                            .offset { IntOffset(horizontal.value, 0) }
+                            .zIndex(1f)
+                            .background(rowColor)
+                            .padding(horizontal = 16.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
                         Text(
-                            text = cellText(cell, noteTitles),
+                            text = row.title.ifBlank { "(無題)" },
                             style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
+                    row.cells.forEachIndexed { columnIndex, cell ->
+                        val numeric = cell is PropertyValue.Number ||
+                            table.columns.getOrNull(columnIndex)?.type == PropertyType.Number
+                        Box(
+                            modifier = Modifier
+                                .width(CellWidth)
+                                .padding(horizontal = 16.dp),
+                            contentAlignment = if (numeric) Alignment.CenterEnd else Alignment.CenterStart
+                        ) {
+                            Text(
+                                text = cellText(cell, noteTitles),
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = if (numeric) TextAlign.End else TextAlign.Start,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
+                HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.5f))
             }
-            HorizontalDivider()
         }
     }
 }
@@ -258,8 +289,9 @@ private fun HeaderCell(
     sort: TableSort?,
     tag: String,
     width: Dp,
-    background: androidx.compose.ui.graphics.Color,
+    background: Color,
     pinned: ScrollState?,
+    numeric: Boolean,
     onClick: (TableSortKey) -> Unit
 ) {
     val indicator = when {
@@ -269,7 +301,7 @@ private fun HeaderCell(
     }
     var modifier = Modifier
         .width(width)
-        .height(RowHeight)
+        .height(HeaderHeight)
     if (pinned != null) {
         modifier = modifier.offset { IntOffset(pinned.value, 0) }.zIndex(1f)
     }
@@ -278,13 +310,19 @@ private fun HeaderCell(
             .background(background)
             .clickable { onClick(key) }
             .testTag(tag)
-            .padding(horizontal = 12.dp),
-        contentAlignment = Alignment.CenterStart
+            .padding(horizontal = 16.dp),
+        contentAlignment = if (numeric) Alignment.CenterEnd else Alignment.CenterStart
     ) {
         Text(
             text = label + indicator,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold,
+            color = if (indicator.isEmpty()) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.primary
+            },
+            textAlign = if (numeric) TextAlign.End else TextAlign.Start,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )

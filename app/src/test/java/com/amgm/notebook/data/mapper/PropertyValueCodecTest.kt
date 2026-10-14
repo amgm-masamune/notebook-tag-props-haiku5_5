@@ -50,31 +50,36 @@ class PropertyValueCodecTest {
     }
 
     @Test
-    fun `空文字のTextとEmptyは区別される`() {
+    fun `空文字のTextとNullは区別される`() {
         assertEquals("TEXT", PropertyValueCodec.valueTypeName(PropertyValue.Text("")))
-        assertEquals("EMPTY", PropertyValueCodec.valueTypeName(PropertyValue.Empty))
-        assertNotEquals(roundTrip(PropertyValue.Text("")), roundTrip(PropertyValue.Empty))
-        assertEquals(PropertyValue.Empty, roundTrip(PropertyValue.Empty))
+        assertEquals("NULL", PropertyValueCodec.valueTypeName(PropertyValue.Null))
+        assertNotEquals(roundTrip(PropertyValue.Text("")), roundTrip(PropertyValue.Null))
+        assertEquals(PropertyValue.Null, roundTrip(PropertyValue.Null))
+        assertEquals(PropertyValue.Text(""), roundTrip(PropertyValue.Text("")))
+        assertEquals("NULL" to "", PropertyValueCodec.encode(PropertyValue.Null))
+        assertEquals("TEXT" to "", PropertyValueCodec.encode(PropertyValue.Text("")))
+        // 旧バージョンが書いた EMPTY は Null として読む
+        assertEquals(PropertyValue.Null, PropertyValueCodec.decode("EMPTY", ""))
     }
 
     @Test
-    fun `未知のvalue_typeはEmptyになる`() {
-        assertEquals(PropertyValue.Empty, PropertyValueCodec.decode("UNKNOWN", "x"))
-        assertEquals(PropertyValue.Empty, PropertyValueCodec.decode("", ""))
-        assertEquals(PropertyValue.Empty, PropertyValueCodec.decode("text", "x"))
+    fun `未知のvalue_typeはNullになる`() {
+        assertEquals(PropertyValue.Null, PropertyValueCodec.decode("UNKNOWN", "x"))
+        assertEquals(PropertyValue.Null, PropertyValueCodec.decode("", ""))
+        assertEquals(PropertyValue.Null, PropertyValueCodec.decode("text", "x"))
     }
 
     @Test
-    fun `不正な文字列はEmptyになりクラッシュしない`() {
-        assertEquals(PropertyValue.Empty, PropertyValueCodec.decode("NUMBER", "abc"))
-        assertEquals(PropertyValue.Empty, PropertyValueCodec.decode("NUMBER", ""))
-        assertEquals(PropertyValue.Empty, PropertyValueCodec.decode("NUMBER", "NaN"))
-        assertEquals(PropertyValue.Empty, PropertyValueCodec.decode("NUMBER", "Infinity"))
-        assertEquals(PropertyValue.Empty, PropertyValueCodec.decode("BOOLEAN", "yes"))
-        assertEquals(PropertyValue.Empty, PropertyValueCodec.decode("BOOLEAN", "TRUE"))
-        assertEquals(PropertyValue.Empty, PropertyValueCodec.decode("DATE", "2024-13-01"))
-        assertEquals(PropertyValue.Empty, PropertyValueCodec.decode("DATE", "2023-02-29"))
-        assertEquals(PropertyValue.Empty, PropertyValueCodec.decode("DATE", ""))
+    fun `不正な文字列はNullになりクラッシュしない`() {
+        assertEquals(PropertyValue.Null, PropertyValueCodec.decode("NUMBER", "abc"))
+        assertEquals(PropertyValue.Null, PropertyValueCodec.decode("NUMBER", ""))
+        assertEquals(PropertyValue.Null, PropertyValueCodec.decode("NUMBER", "NaN"))
+        assertEquals(PropertyValue.Null, PropertyValueCodec.decode("NUMBER", "Infinity"))
+        assertEquals(PropertyValue.Null, PropertyValueCodec.decode("BOOLEAN", "yes"))
+        assertEquals(PropertyValue.Null, PropertyValueCodec.decode("BOOLEAN", "TRUE"))
+        assertEquals(PropertyValue.Null, PropertyValueCodec.decode("DATE", "2024-13-01"))
+        assertEquals(PropertyValue.Null, PropertyValueCodec.decode("DATE", "2023-02-29"))
+        assertEquals(PropertyValue.Null, PropertyValueCodec.decode("DATE", ""))
     }
 
     @Test

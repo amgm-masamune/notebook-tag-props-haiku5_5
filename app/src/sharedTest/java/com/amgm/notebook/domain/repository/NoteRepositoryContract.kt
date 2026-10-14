@@ -79,7 +79,7 @@ abstract class NoteRepositoryContract {
             "yes" to PropertyValue.Bool(true),
             "no" to PropertyValue.Bool(false),
             "date" to PropertyValue.Date(LocalDate.of(2024, 2, 29)),
-            "empty" to PropertyValue.Empty
+            "empty" to PropertyValue.Null
         )
         notes.save(note("n1", props = props))
         assertEquals(note("n1", props = props).properties, notes.getNote(NoteId("n1"))!!.properties)

@@ -8,6 +8,7 @@ import com.amgm.notebook.domain.model.TagId
 import com.amgm.notebook.ui.noteedit.NoteEditViewModel
 import com.amgm.notebook.ui.notelist.NoteListViewModel
 import com.amgm.notebook.ui.tagedit.TagEditViewModel
+import com.amgm.notebook.ui.tableindex.TableIndexViewModel
 import com.amgm.notebook.ui.taglist.TagListViewModel
 import com.amgm.notebook.ui.tagtable.TagTableViewModel
 
@@ -44,3 +45,6 @@ fun tagEditViewModelFactory(container: AppContainer, tagId: TagId?): ViewModelPr
 
 fun tagTableViewModelFactory(container: AppContainer, tagId: TagId): ViewModelProvider.Factory =
     factoryOf { TagTableViewModel(tagId, container.tagRepository, container.noteRepository) }
+
+fun tableIndexViewModelFactory(container: AppContainer): ViewModelProvider.Factory =
+    factoryOf { TableIndexViewModel(container.tagRepository, container.noteRepository) }

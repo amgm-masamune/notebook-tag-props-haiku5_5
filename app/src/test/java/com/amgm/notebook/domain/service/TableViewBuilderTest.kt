@@ -77,13 +77,13 @@ class TableViewBuilderTest {
     }
 
     @Test
-    fun `セルは列順で値が無ければEmpty`() {
+    fun `セルは列順で値が無ければNull`() {
         val notes = listOf(
             noteOf("n", tags = listOf("Ebook"), props = mapOf("price" to num(9.0), "size" to num(2.0), "free" to txt("x")))
         )
         val row = builder.build(TagId("Ebook"), tags, notes).rows.single()
         assertEquals(NoteId("n"), row.noteId)
-        assertEquals(listOf<PropertyValue>(num(9.0), PropertyValue.Empty, num(2.0)), row.cells)
+        assertEquals(listOf<PropertyValue>(num(9.0), PropertyValue.Null, num(2.0)), row.cells)
     }
 
     @Test
@@ -93,7 +93,7 @@ class TableViewBuilderTest {
     }
 
     @Test
-    fun `Numberは数値順でEmptyは昇順降順どちらでも末尾`() {
+    fun `Numberは数値順でNullは昇順降順どちらでも末尾`() {
         val notes = listOf(
             noteOf("p10", tags = listOf("Book"), props = mapOf("price" to num(10.0)), updated = 1),
             noteOf("p2", tags = listOf("Book"), props = mapOf("price" to num(2.0)), updated = 2),
@@ -179,5 +179,22 @@ class TableViewBuilderTest {
         assertThrows(TagNotFoundException::class.java) {
             builder.build(TagId("ghost"), tags, emptyList())
         }
+    }
+
+    @Test
+    fun `Nullは末尾でTextの空文字は空文字として並び両方とも未入力扱い`() {
+        val notes = listOf(
+            noteOf("null", tags = listOf("Book"), props = mapOf("author" to PropertyValue.Null), updated = 1),
+            noteOf("b", tags = listOf("Book"), props = mapOf("author" to txt("b")), updated = 2),
+            noteOf("empty", tags = listOf("Book"), props = mapOf("author" to txt("")), updated = 3),
+            noteOf("a", tags = listOf("Book"), props = mapOf("author" to txt("a")), updated = 4)
+        )
+        val key = TableSortKey.Property(PropertyName("author"))
+        val asc = builder.build(TagId("Book"), tags, notes, TableSort(key, true))
+        val desc = builder.build(TagId("Book"), tags, notes, TableSort(key, false))
+        assertEquals(listOf("empty", "a", "b", "null"), ids(asc))
+        assertEquals(listOf("b", "a", "empty", "null"), ids(desc))
+        val cells = asc.rows.map { it.cells[1] }
+        assertEquals(listOf(true, false, false, true), cells.map { it.isUnset })
     }
 }
