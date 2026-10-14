@@ -55,7 +55,7 @@ app/src/main/res/values/strings.xml, themes.xml, ...
 <M>/domain/error/DomainExceptions.kt
 <M>/domain/util/IdGenerator.kt             interface IdGenerator { fun newId(): String } + class UuidIdGenerator
 
-<M>/markdown/MarkdownNode.kt  MarkdownParser.kt
+<M>/markdown/MarkdownNode.kt  MarkdownParser.kt  MarkdownHighlighter.kt（編集欄の装飾範囲。純 Kotlin）
 
 <M>/data/db/NotebookDatabase.kt  NoteDao.kt  TagDao.kt  NotebookMigrations.kt   (v2: Migration 1->2)
 <M>/data/db/entity/NoteEntity.kt  TagEntity.kt  TagParentEntity.kt  NoteTagEntity.kt  TagPropertyDefinitionEntity.kt  NotePropertyEntity.kt  Relations.kt
@@ -71,6 +71,7 @@ app/src/main/res/values/strings.xml, themes.xml, ...
 <M>/ui/theme/Theme.kt  Color.kt  Type.kt  Dimens.kt
 <M>/ui/components/NotebookCard.kt  TagChip.kt  TagPalette.kt  PillSearchField.kt  SectionHeader.kt  EmptyState.kt  LargeTitleHeader.kt  NotebookFields.kt
 <M>/ui/markdown/MarkdownView.kt             MarkdownDocument を Compose で描画
+<M>/ui/markdown/MarkdownEditorTransformation.kt  編集欄の記法の見た目（文字列は変えない VisualTransformation）
 <M>/ui/notelist/NoteListScreen.kt  NoteListViewModel.kt
 <M>/ui/noteedit/NoteEditScreen.kt  NotePickerSheet.kt  NoteEditViewModel.kt
 <M>/ui/taglist/TagListScreen.kt  TagListViewModel.kt

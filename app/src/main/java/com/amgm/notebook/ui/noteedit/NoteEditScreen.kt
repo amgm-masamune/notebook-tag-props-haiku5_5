@@ -84,6 +84,7 @@ import com.amgm.notebook.ui.lighting.glassPanel
 import com.amgm.notebook.ui.lighting.litSurface
 import com.amgm.notebook.ui.lighting.softShadow
 import com.amgm.notebook.ui.markdown.MarkdownView
+import com.amgm.notebook.ui.markdown.rememberMarkdownEditorTransformation
 import com.amgm.notebook.ui.theme.NotebookDimens
 
 @Composable
@@ -146,6 +147,7 @@ private fun NoteEditContent(
 ) {
     var showAddProperty by remember { mutableStateOf(false) }
     val tagNames = remember(state.availableTags) { state.availableTags.associate { it.id to it.name } }
+    val bodyVisualTransformation = rememberMarkdownEditorTransformation()
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -391,6 +393,7 @@ private fun NoteEditContent(
                                     onValueChange = onBodyChange,
                                     placeholder = { Text("Markdown で記述") },
                                     minLines = 8,
+                                    visualTransformation = bodyVisualTransformation,
                                     textStyle = MaterialTheme.typography.bodyLarge,
                                     shape = NotebookInputShape,
                                     colors = notebookBorderlessFieldColors(),
