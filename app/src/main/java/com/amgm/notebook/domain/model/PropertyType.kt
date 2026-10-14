@@ -9,6 +9,9 @@ sealed interface PropertyType {
     /** ISO-8601 の LocalDate (yyyy-MM-dd)。 */
     data object Date : PropertyType
 
+    /** テキストのリスト（複数値、順序保持）。値は [PropertyValue.TextList]。 */
+    data object TextList : PropertyType
+
     /**
      * 他ノートへのリンク（複数可）。値は [PropertyValue.NoteRefs]。
      * [targetTagId] は UI が候補を絞り込む既定のタグ。null なら絞り込みなし。検証では強制しない。
