@@ -65,13 +65,19 @@ fun NotebookNavHost(
                     type = NavType.StringType
                     nullable = true
                     defaultValue = null
+                },
+                navArgument(Routes.ARG_TAG_ID) {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
                 }
             )
         ) { entry ->
             val noteId = entry.arguments?.getString(Routes.ARG_NOTE_ID)?.takeIf { it.isNotBlank() }?.let { NoteId(it) }
+            val initialTagId = entry.arguments?.getString(Routes.ARG_TAG_ID)?.takeIf { it.isNotBlank() }?.let { TagId(it) }
             val vm: NoteEditViewModel = viewModel(
                 key = "${Routes.NOTE_EDIT}/${noteId?.value}/${entry.id}",
-                factory = noteEditViewModelFactory(container, noteId)
+                factory = noteEditViewModelFactory(container, noteId, initialTagId)
             )
             EventEffect(vm.events, navController, snackbarHostState, scope)
             NoteEditScreen(vm, snackbarHostState)

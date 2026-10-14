@@ -20,14 +20,19 @@ private fun factoryOf(block: () -> ViewModel): ViewModelProvider.Factory =
 fun noteListViewModelFactory(container: AppContainer): ViewModelProvider.Factory =
     factoryOf { NoteListViewModel(container.noteRepository, container.tagRepository) }
 
-fun noteEditViewModelFactory(container: AppContainer, noteId: NoteId?): ViewModelProvider.Factory =
+fun noteEditViewModelFactory(
+    container: AppContainer,
+    noteId: NoteId?,
+    initialTagId: TagId? = null
+): ViewModelProvider.Factory =
     factoryOf {
         NoteEditViewModel(
             noteId = noteId,
             noteRepository = container.noteRepository,
             tagRepository = container.tagRepository,
             idGenerator = container.idGenerator,
-            clock = container.clock
+            clock = container.clock,
+            initialTagId = initialTagId
         )
     }
 

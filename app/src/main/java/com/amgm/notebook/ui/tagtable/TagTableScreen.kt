@@ -18,11 +18,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,6 +47,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.amgm.notebook.domain.model.NoteId
+import com.amgm.notebook.domain.model.PropertyValue
 import com.amgm.notebook.domain.service.TableSort
 import com.amgm.notebook.domain.service.TableSortKey
 import com.amgm.notebook.domain.service.TableView
@@ -76,6 +80,14 @@ fun TagTableScreen(viewModel: TagTableViewModel, snackbarHostState: SnackbarHost
                         modifier = Modifier.testTag(TestTags.TAG_TABLE_EDIT)
                     ) { Icon(Icons.Default.Edit, contentDescription = "タグを編集") }
                 }
+            )
+        },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = viewModel::onAddNoteClick,
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text("ノートを追加") },
+                modifier = Modifier.testTag(TestTags.TAG_TABLE_ADD_NOTE)
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -125,6 +137,7 @@ fun TagTableScreen(viewModel: TagTableViewModel, snackbarHostState: SnackbarHost
                 TableContent(
                     table = table,
                     sort = state.sort,
+                    noteTitles = state.noteTitles,
                     onSortChange = viewModel::onSortChange,
                     onRowClick = viewModel::onRowClick
                 )
@@ -137,8 +150,9 @@ fun TagTableScreen(viewModel: TagTableViewModel, snackbarHostState: SnackbarHost
 private fun TableContent(
     table: TableView,
     sort: TableSort?,
+    noteTitles: Map<NoteId, String>,
     onSortChange: (TableSortKey) -> Unit,
-    onRowClick: (com.amgm.notebook.domain.model.NoteId) -> Unit
+    onRowClick: (NoteId) -> Unit
 ) {
     val horizontal = rememberScrollState()
     val vertical = rememberScrollState()
@@ -213,7 +227,7 @@ private fun TableContent(
                         contentAlignment = Alignment.CenterStart
                     ) {
                         Text(
-                            text = PropertyInputs.display(cell),
+                            text = cellText(cell, noteTitles),
                             style = MaterialTheme.typography.bodyMedium,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
@@ -224,6 +238,17 @@ private fun TableContent(
             HorizontalDivider()
         }
     }
+}
+
+/**
+ * 表セルの表示文字列。NoteRefs は参照先タイトルのカンマ区切り（1 件も取得できなければ件数表示、
+ * 一部欠けていればその参照は「（削除済み）」）。それ以外は [PropertyInputs.display]。
+ */
+internal fun cellText(cell: PropertyValue, noteTitles: Map<NoteId, String>): String {
+    if (cell !is PropertyValue.NoteRefs) return PropertyInputs.display(cell)
+    if (cell.ids.isEmpty()) return ""
+    if (cell.ids.none { it in noteTitles }) return "${cell.ids.size} 件"
+    return cell.ids.joinToString(", ") { id -> noteTitles[id]?.ifBlank { "(無題)" } ?: "（削除済み）" }
 }
 
 @Composable

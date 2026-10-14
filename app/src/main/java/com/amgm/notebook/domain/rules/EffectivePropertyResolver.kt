@@ -33,6 +33,11 @@ class EffectivePropertyResolver(private val hierarchy: TagHierarchy) {
 
     constructor(tags: Map<TagId, Tag>) : this(TagHierarchy(tags))
 
+    private companion object {
+        /** 衝突判定で NoteLink 同士をまとめるための目印。 */
+        val NOTE_LINK_KIND = Any()
+    }
+
     private data class Origin(val tagId: TagId, val definition: PropertyDefinition)
 
     fun resolve(tagId: TagId): EffectiveSchema = resolveForTags(setOf(tagId))
@@ -55,11 +60,22 @@ class EffectivePropertyResolver(private val hierarchy: TagHierarchy) {
                     other.tagId != candidate.tagId && hierarchy.isSubtypeOf(other.tagId, candidate.tagId)
                 }
             }
-            val types = minimal.map { it.definition.type }.distinct()
-            if (types.size == 1) {
+            // NoteLink は targetTagId が違っても同じ型とみなす（衝突させない）
+            val kinds = minimal.map { origin ->
+                val type = origin.definition.type
+                if (type is PropertyType.NoteLink) NOTE_LINK_KIND else type
+            }.distinct()
+            if (kinds.size == 1) {
+                val mergedType: PropertyType = if (kinds.first() == NOTE_LINK_KIND) {
+                    // 子優先で残った定義のうち、対象タグを持つ最初のものを採用
+                    val links = minimal.map { it.definition.type }.filterIsInstance<PropertyType.NoteLink>()
+                    links.firstOrNull { it.targetTagId != null } ?: links.first()
+                } else {
+                    minimal.first().definition.type
+                }
                 val merged = PropertyDefinition(
                     name = name,
-                    type = types.first(),
+                    type = mergedType,
                     required = minimal.any { it.definition.required }
                 )
                 definitions.add(EffectiveProperty(merged, minimal.first().tagId))

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.amgm.notebook.domain.model.Tag
 import com.amgm.notebook.domain.model.TagId
 import com.amgm.notebook.domain.repository.TagRepository
+import com.amgm.notebook.domain.service.flattenTagTree
 import com.amgm.notebook.ui.common.UiEvent
 import com.amgm.notebook.ui.common.UiMessage
 import com.amgm.notebook.ui.navigation.Destination
@@ -21,7 +22,11 @@ data class TagListItem(
     val id: TagId,
     val name: String,
     val parentNames: List<String>,
-    val ownDefinitionCount: Int
+    val ownDefinitionCount: Int,
+    /** 親子関係の深さ（根=0）。インデントに使う。 */
+    val depth: Int = 0,
+    /** 複数親のタグの2回目以降の出現行なら true。 */
+    val isAdditionalParentOccurrence: Boolean = false
 )
 
 data class TagListUiState(
@@ -46,14 +51,18 @@ class TagListViewModel(
         viewModelScope.launch {
             tagRepository.observeTags().collect { tags ->
                 tagsById = tags.associateBy { it.id }
-                val items = tags.map { tag ->
+                // 親子関係に沿って深さ優先に平坦化する（複数親のタグは親ごとに出現）
+                val items = flattenTagTree(tags).map { node ->
+                    val tag = node.tag
                     TagListItem(
                         id = tag.id,
                         name = tag.name,
                         parentNames = tag.parentIds
                             .mapNotNull { tagsById[it]?.name }
                             .sortedBy { it.lowercase() },
-                        ownDefinitionCount = tag.ownPropertyDefinitions.size
+                        ownDefinitionCount = tag.ownPropertyDefinitions.size,
+                        depth = node.depth,
+                        isAdditionalParentOccurrence = node.isAdditionalParentOccurrence
                     )
                 }
                 _uiState.update { it.copy(items = items, isLoading = false) }

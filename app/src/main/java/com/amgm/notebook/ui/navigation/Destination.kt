@@ -11,8 +11,9 @@ sealed interface Destination {
         override val route: String get() = Routes.NOTE_LIST
     }
 
-    data class NoteEdit(val noteId: NoteId?) : Destination {
-        override val route: String get() = Routes.noteEdit(noteId)
+    /** [initialTagId] は新規作成（noteId == null）時に初期選択するタグ。 */
+    data class NoteEdit(val noteId: NoteId?, val initialTagId: TagId? = null) : Destination {
+        override val route: String get() = Routes.noteEdit(noteId, initialTagId)
     }
 
     data object TagList : Destination {

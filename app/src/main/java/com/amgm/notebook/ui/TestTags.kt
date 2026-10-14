@@ -32,6 +32,31 @@ object TestTags {
     const val NOTE_EDIT_DISCARD_CONFIRM = "note_edit_discard_confirm"
     const val NOTE_EDIT_DISCARD_DISMISS = "note_edit_discard_dismiss"
 
+    // ノート編集 (v2)
+    /** タグ選択チップ付近の「タグを作成」ボタン。 */
+    const val NOTE_EDIT_CREATE_TAG = "note_edit_create_tag"
+    /** 「タイトル変更時に最初の見出し(h1)も更新する」スイッチ。 */
+    const val NOTE_EDIT_AUTO_SYNC_H1 = "note_edit_auto_sync_h1"
+    /** NoteLink 行の「ノートを選ぶ」ボタン。末尾に `PropertyName.value`。 */
+    const val NOTE_EDIT_LINK_PICK_PREFIX = "note_edit_link_pick_"
+    /** NoteLink 行の選択済みノートチップ。末尾に `<PropertyName.value>_<NoteId.value>`。 */
+    const val NOTE_EDIT_LINK_CHIP_PREFIX = "note_edit_link_chip_"
+    /** 選択済みチップの × ボタン。末尾に `<PropertyName.value>_<NoteId.value>`。 */
+    const val NOTE_EDIT_LINK_REMOVE_PREFIX = "note_edit_link_remove_"
+
+    // ノートピッカー (v2)
+    const val NOTE_PICKER = "note_picker"
+    const val NOTE_PICKER_SEARCH = "note_picker_search"
+    /** 絞り込みチップ「すべて」。 */
+    const val NOTE_PICKER_FILTER_ALL = "note_picker_filter_all"
+    /** 絞り込みタグチップ。末尾に `TagId.value`。 */
+    const val NOTE_PICKER_FILTER_TAG_PREFIX = "note_picker_filter_tag_"
+    /** 候補ノート行（チェックボックス行全体）。末尾に `NoteId.value`。 */
+    const val NOTE_PICKER_ITEM_PREFIX = "note_picker_item_"
+    const val NOTE_PICKER_CONFIRM = "note_picker_confirm"
+    const val NOTE_PICKER_CANCEL = "note_picker_cancel"
+    const val NOTE_PICKER_EMPTY = "note_picker_empty"
+
     // タグ一覧
     const val TAG_LIST_FAB = "tag_list_fab"
     const val TAG_LIST_ITEM_PREFIX = "tag_list_item_"
@@ -39,6 +64,8 @@ object TestTags {
     const val TAG_LIST_DELETE_PREFIX = "tag_list_delete_"
     const val TAG_LIST_DELETE_CONFIRM = "tag_list_delete_confirm"
     const val TAG_LIST_BACK = "tag_list_back"
+    /** 複数親タグの2回目以降の出現行。末尾に `TagId.value`（初出行は `TAG_LIST_ITEM_PREFIX`）。 */
+    const val TAG_LIST_ITEM_REPEAT_PREFIX = "tag_list_repeat_item_"
 
     // タグ編集
     const val TAG_EDIT_NAME = "tag_edit_name"
@@ -49,6 +76,8 @@ object TestTags {
     const val TAG_EDIT_DEFINITION_TYPE_PREFIX = "tag_edit_definition_type_"
     const val TAG_EDIT_DEFINITION_REQUIRED_PREFIX = "tag_edit_definition_required_"
     const val TAG_EDIT_DEFINITION_REMOVE_PREFIX = "tag_edit_definition_remove_"
+    /** NoteLink 定義の既定絞り込みタグ。末尾は `<index>_<TagId.value|none>`。 */
+    const val TAG_EDIT_DEFINITION_LINK_TARGET_PREFIX = "tag_edit_definition_link_target_"
     const val TAG_EDIT_SAVE = "tag_edit_save"
     const val TAG_EDIT_BACK = "tag_edit_back"
 
@@ -59,4 +88,6 @@ object TestTags {
     const val TAG_TABLE_BACK = "tag_table_back"
     const val TAG_TABLE_EDIT = "tag_table_edit"
     const val TAG_TABLE_EMPTY = "tag_table_empty"
+    /** 表ビューの「ノートを追加」FAB。 */
+    const val TAG_TABLE_ADD_NOTE = "tag_table_add_note"
 }

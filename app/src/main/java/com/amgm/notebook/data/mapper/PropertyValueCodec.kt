@@ -1,7 +1,9 @@
 package com.amgm.notebook.data.mapper
 
+import com.amgm.notebook.domain.model.NoteId
 import com.amgm.notebook.domain.model.PropertyType
 import com.amgm.notebook.domain.model.PropertyValue
+import com.amgm.notebook.domain.model.TagId
 import java.time.LocalDate
 
 /**
@@ -15,16 +17,28 @@ object PropertyValueCodec {
     const val TYPE_DATE = "DATE"
     const val TYPE_EMPTY = "EMPTY"
 
+    /** 定義 `type` 列: ノートリンク。対象タグは別列 `link_target_tag_id`。 */
+    const val TYPE_NOTE_LINK = "NOTE_LINK"
+
+    /** `value_type` 列: ノート参照。`value_text` はカンマ区切りの NoteId。 */
+    const val TYPE_NOTE_REFS = "NOTE_REFS"
+
     /** `type` 列の名前。 */
     fun typeName(type: PropertyType): String = when (type) {
         PropertyType.Text -> TYPE_TEXT
         PropertyType.Number -> TYPE_NUMBER
         PropertyType.Boolean -> TYPE_BOOLEAN
         PropertyType.Date -> TYPE_DATE
+        is PropertyType.NoteLink -> TYPE_NOTE_LINK
     }
 
-    /** `type` 列から復元。未知の名前は null。 */
-    fun parseType(name: String): PropertyType? = when (name) {
+    /** `link_target_tag_id` 列の値。NoteLink 以外は null。 */
+    fun linkTargetOf(type: PropertyType): String? =
+        (type as? PropertyType.NoteLink)?.targetTagId?.value
+
+    /** `type` 列から復元。未知の名前は null。NOTE_LINK の対象タグは [linkTarget] で指定する。 */
+    fun parseType(name: String, linkTarget: String? = null): PropertyType? = when (name) {
+        TYPE_NOTE_LINK -> PropertyType.NoteLink(linkTarget?.takeIf { it.isNotBlank() }?.let { TagId(it) })
         TYPE_TEXT -> PropertyType.Text
         TYPE_NUMBER -> PropertyType.Number
         TYPE_BOOLEAN -> PropertyType.Boolean
@@ -38,6 +52,7 @@ object PropertyValueCodec {
         is PropertyValue.Number -> TYPE_NUMBER
         is PropertyValue.Bool -> TYPE_BOOLEAN
         is PropertyValue.Date -> TYPE_DATE
+        is PropertyValue.NoteRefs -> TYPE_NOTE_REFS
         is PropertyValue.Empty -> TYPE_EMPTY
     }
 
@@ -47,6 +62,10 @@ object PropertyValueCodec {
         is PropertyValue.Number -> value.value.toString()
         is PropertyValue.Bool -> if (value.value) "true" else "false"
         is PropertyValue.Date -> value.value.toString()
+        is PropertyValue.NoteRefs -> {
+            require(value.ids.none { it.value.contains(',') }) { "NoteId にカンマは使えません" }
+            value.ids.joinToString(",") { it.value }
+        }
         is PropertyValue.Empty -> ""
     }
 
@@ -67,6 +86,9 @@ object PropertyValueCodec {
                 else -> PropertyValue.Empty
             }
             TYPE_DATE -> PropertyValue.Date(LocalDate.parse(valueText))
+            TYPE_NOTE_REFS -> PropertyValue.NoteRefs.of(
+                valueText.split(',').filter { it.isNotBlank() }.map { NoteId(it) }
+            )
             else -> PropertyValue.Empty
         }
     } catch (e: RuntimeException) {

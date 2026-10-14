@@ -10,5 +10,7 @@ data class Note(
     val tagIds: Set<TagId>,
     val properties: Map<PropertyName, PropertyValue>,
     val createdAt: Instant,
-    val updatedAt: Instant
+    val updatedAt: Instant,
+    /** 本文の最初の h1 とタイトルを同期するか（同期自体は UI が行う）。規定ON。 */
+    val autoSyncTitleH1: Boolean = true
 )

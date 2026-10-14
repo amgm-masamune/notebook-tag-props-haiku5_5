@@ -100,4 +100,34 @@ class TagListViewModelTest {
             events
         )
     }
+    @Test
+    fun `一覧は親子関係でネストした行を深さ付きで持つ`() = runTest {
+        val repos = InMemoryRepositories()
+        repos.tags.save(tagOf("book", name = "書籍"))
+        repos.tags.save(tagOf("ebook", name = "電子書籍", parents = listOf("book")))
+        repos.tags.save(tagOf("manga", name = "電子漫画", parents = listOf("ebook")))
+        repos.tags.save(tagOf("food", name = "食品"))
+        val vm = TagListViewModel(repos.tags)
+        advanceUntilIdle()
+
+        val items = vm.uiState.value.items
+        assertEquals(listOf("書籍", "電子書籍", "電子漫画", "食品"), items.map { it.name })
+        assertEquals(listOf(0, 1, 2, 0), items.map { it.depth })
+        assertTrue(items.none { it.isAdditionalParentOccurrence })
+    }
+
+    @Test
+    fun `複数の親を持つタグは親ごとに出現し2回目以降は複数親の印が付く`() = runTest {
+        val repos = InMemoryRepositories()
+        repos.tags.save(tagOf("a", name = "A"))
+        repos.tags.save(tagOf("b", name = "B"))
+        repos.tags.save(tagOf("c", name = "C", parents = listOf("a", "b")))
+        val vm = TagListViewModel(repos.tags)
+        advanceUntilIdle()
+
+        val items = vm.uiState.value.items
+        assertEquals(listOf("A", "C", "B", "C"), items.map { it.name })
+        assertEquals(listOf(0, 1, 0, 1), items.map { it.depth })
+        assertEquals(listOf(false, false, false, true), items.map { it.isAdditionalParentOccurrence })
+    }
 }

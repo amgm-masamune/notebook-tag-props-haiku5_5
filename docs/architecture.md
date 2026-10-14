@@ -49,15 +49,15 @@ app/src/main/res/values/strings.xml, themes.xml, ...
 <M>/MainActivity.kt                         ComponentActivity。setContent { NotebookApp(container) }
 
 <M>/domain/model/Ids.kt  PropertyType.kt  PropertyValue.kt  PropertyDefinition.kt  Tag.kt  Note.kt
-<M>/domain/rules/TagHierarchy.kt  EffectivePropertyResolver.kt  NoteValidator.kt
-<M>/domain/service/TableViewBuilder.kt
+<M>/domain/rules/TagHierarchy.kt  EffectivePropertyResolver.kt  NoteValidator.kt  TitleHeadingSync.kt   (v2: TitleHeadingSync)
+<M>/domain/service/TableViewBuilder.kt  TagTree.kt   (v2: TagTree)
 <M>/domain/repository/NoteRepository.kt  TagRepository.kt
 <M>/domain/error/DomainExceptions.kt
 <M>/domain/util/IdGenerator.kt             interface IdGenerator { fun newId(): String } + class UuidIdGenerator
 
 <M>/markdown/MarkdownNode.kt  MarkdownParser.kt
 
-<M>/data/db/NotebookDatabase.kt  NoteDao.kt  TagDao.kt
+<M>/data/db/NotebookDatabase.kt  NoteDao.kt  TagDao.kt  NotebookMigrations.kt   (v2: Migration 1->2)
 <M>/data/db/entity/NoteEntity.kt  TagEntity.kt  TagParentEntity.kt  NoteTagEntity.kt  TagPropertyDefinitionEntity.kt  NotePropertyEntity.kt  Relations.kt
 <M>/data/mapper/EntityMappers.kt  PropertyValueCodec.kt
 <M>/data/repository/RoomNoteRepository.kt  RoomTagRepository.kt
@@ -71,7 +71,7 @@ app/src/main/res/values/strings.xml, themes.xml, ...
 <M>/ui/theme/Theme.kt  Color.kt  Type.kt
 <M>/ui/markdown/MarkdownView.kt             MarkdownDocument を Compose で描画
 <M>/ui/notelist/NoteListScreen.kt  NoteListViewModel.kt
-<M>/ui/noteedit/NoteEditScreen.kt  NoteEditViewModel.kt
+<M>/ui/noteedit/NoteEditScreen.kt  NotePickerSheet.kt  NoteEditViewModel.kt
 <M>/ui/taglist/TagListScreen.kt  TagListViewModel.kt
 <M>/ui/tagedit/TagEditScreen.kt  TagEditViewModel.kt
 <M>/ui/tagtable/TagTableScreen.kt  TagTableViewModel.kt
@@ -84,10 +84,10 @@ app/src/main/res/values/strings.xml, themes.xml, ...
 | 画面 | Composable | ViewModel | 目的 |
 |---|---|---|---|
 | ノート一覧 | `NoteListScreen` | `NoteListViewModel` | 検索・新規作成・タグ一覧への導線。FAB で新規。 |
-| ノート編集 | `NoteEditScreen` | `NoteEditViewModel` | タイトル、タグ選択チップ、プロパティ編集、本文の編集/プレビュー切替。 |
-| タグ一覧 | `TagListScreen` | `TagListViewModel` | タグ一覧（親タグ名・定義数）、新規/編集/削除、表ビューへ。 |
+| ノート編集 | `NoteEditScreen` (+ `NotePickerSheet`) | `NoteEditViewModel` | タイトル、h1 自動同期トグル、タグ選択チップと「タグを作成」、プロパティ編集（NoteLink はノートピッカー）、本文の編集/プレビュー切替。 |
+| タグ一覧 | `TagListScreen` | `TagListViewModel` | タグを親子関係でネスト表示（`flattenTagTree`）、親タグ名・定義数、新規/編集/削除、表ビューへ。 |
 | タグ編集 | `TagEditScreen` | `TagEditViewModel` | 名前、親タグ複数選択、プロパティ定義編集（追加・型・必須・並べ替え・削除）、継承定義の読み取り表示。 |
-| タグ別表ビュー | `TagTableScreen` | `TagTableViewModel` | タグ T の一員を表形式で一覧。列ソート。行タップでノート編集。 |
+| タグ別表ビュー | `TagTableScreen` | `TagTableViewModel` | タグ T の一員を表形式で一覧。列ソート。行タップでノート編集。FAB「ノートを追加」で T を初期選択した新規ノートへ。 |
 
 UI 方針: Material3 (`Scaffold`, `TopAppBar`, `FloatingActionButton`, `FilterChip`/`InputChip`, `OutlinedTextField`, `SegmentedButton` で編集/プレビュー切替, `AlertDialog`)。`Theme.kt` は Android 12 (API 31) 以上で `dynamicLightColorScheme` / `dynamicDarkColorScheme`、未満は `Color.kt` の固定配色。ダークは `isSystemInDarkTheme()` に追従。edge-to-edge 有効。表ビューは横スクロール可能で、タイトル列を固定表示する。
 
@@ -98,12 +98,12 @@ UI 方針: Material3 (`Scaffold`, `TopAppBar`, `FloatingActionButton`, `FilterCh
 | 定数 | ルート文字列 | 引数 |
 |---|---|---|
 | `Routes.NOTE_LIST` | `note_list`（開始地点） | なし |
-| `Routes.NOTE_EDIT` | `note_edit?noteId={noteId}` | `noteId`: String, nullable, default null（null=新規） |
+| `Routes.NOTE_EDIT` | `note_edit?noteId={noteId}&tagId={tagId}` | `noteId`: String, nullable, default null（null=新規）。v2: `tagId`: String, nullable, default null（新規作成時の初期選択タグ） |
 | `Routes.TAG_LIST` | `tag_list` | なし |
 | `Routes.TAG_EDIT` | `tag_edit?tagId={tagId}` | `tagId`: String, nullable, default null（null=新規） |
 | `Routes.TAG_TABLE` | `tag_table/{tagId}` | `tagId`: String（必須） |
 
-引数キー定数: `Routes.ARG_NOTE_ID = "noteId"`, `Routes.ARG_TAG_ID = "tagId"`。ルート生成関数: `Routes.noteEdit(id: NoteId?)`, `Routes.tagEdit(id: TagId?)`, `Routes.tagTable(id: TagId)`。
+引数キー定数: `Routes.ARG_NOTE_ID = "noteId"`, `Routes.ARG_TAG_ID = "tagId"`。ルート生成関数: `Routes.noteEdit(id: NoteId?, initialTagId: TagId? = null)`, `Routes.tagEdit(id: TagId?)`, `Routes.tagTable(id: TagId)`。
 
 遷移先の型（`ui/navigation/Destination.kt`、純Kotlinで JUnit から検証可能）:
 
@@ -111,7 +111,7 @@ UI 方針: Material3 (`Scaffold`, `TopAppBar`, `FloatingActionButton`, `FilterCh
 sealed interface Destination {
     val route: String
     data object NoteList : Destination          // route = Routes.NOTE_LIST
-    data class NoteEdit(val noteId: NoteId?) : Destination   // route = Routes.noteEdit(noteId)
+    data class NoteEdit(val noteId: NoteId?, val initialTagId: TagId? = null) : Destination   // route = Routes.noteEdit(noteId, initialTagId)
     data object TagList : Destination
     data class TagEdit(val tagId: TagId?) : Destination
     data class TagTable(val tagId: TagId) : Destination
@@ -145,6 +145,9 @@ flowchart TD
     NL -->|タグアイコン| TL
     NE -->|保存成功 / 戻る / 削除| NL
     NE -->|選択中タグの「表で見る」| TT
+    NE -->|「タグを作成」| TE
+    TE -->|保存後の戻り: ノート編集の入力は保持| NE
+    TT -->|FAB「ノートを追加」: tagId 付き新規| NE
     TL -->|FABで新規 / 編集アイコン| TE
     TL -->|タグ行タップ| TT
     TL -->|戻る| NL
@@ -185,7 +188,7 @@ flowchart TD
 
 ### 5.2 NoteEditViewModel
 
-コンストラクタ: `(noteId: NoteId?, noteRepository, tagRepository, idGenerator: IdGenerator, clock: Clock)`。`noteId == null` は新規（`idGenerator` で ID 採番、`createdAt = clock.instant()`）。存在しない `noteId` を渡された場合は新規扱いにせず、`notFound = true` を立てて `events` に `NavigateBack` を発行する。
+コンストラクタ: `(noteId: NoteId?, noteRepository, tagRepository, idGenerator: IdGenerator, clock: Clock, initialTagId: TagId? = null)`（v2: `initialTagId` は新規作成時の初期選択タグ。存在しなければ無視）。`noteId == null` は新規（`idGenerator` で ID 採番、`createdAt = clock.instant()`）。存在しない `noteId` を渡された場合は新規扱いにせず、`notFound = true` を立てて `events` に `NavigateBack` を発行する。
 
 | UiState (`NoteEditUiState`) | 型 | 説明 |
 |---|---|---|
@@ -199,6 +202,9 @@ flowchart TD
 | `selectedTagIds` | `Set<TagId>` | |
 | `propertyRows` | `List<PropertyRowUi>` | 下記 |
 | `issues` | `List<ValidationIssue>` | 最新の検証結果（常時再計算） |
+| `autoSyncTitleH1` | `Boolean` | v2: タイトル変更時に本文の最初の h1 も更新するか。新規ON、既存は保存値。保存時に `Note.autoSyncTitleH1` へ |
+| `noteTitles` | `Map<NoteId, String>` | v2: 存在する全ノートの ID→タイトル（NoteRefs チップ表示用。無い ID は UI が「（削除済み）」） |
+| `picker` | `NotePickerUi?` | v2: 開いているノートピッカー（`propertyName, query, filterTagId, selectedIds, candidates`） |
 | `isDirty` | `Boolean` | 保存済みから変更があるか |
 | `isSaving` | `Boolean` | |
 | `showDiscardDialog` | `Boolean` | 未保存で戻ろうとした時の確認 |
@@ -208,7 +214,7 @@ flowchart TD
 
 | 操作関数 | 動作 |
 |---|---|
-| `onTitleChange(title: String)` | title 更新、`isDirty = true` |
+| `onTitleChange(title: String)` | title 更新、`isDirty = true`。`autoSyncTitleH1` が ON なら本文を `TitleHeadingSync`（本文が空なら `initialBody`、それ以外は `syncFirstH1`）で更新。OFF なら本文は不変 |
 | `onBodyChange(body: String)` | body 更新、`isDirty = true` |
 | `onModeChange(mode: EditorMode)` | モード切替。Preview に切替時に `previewDocument` 更新 |
 | `onTagToggle(tagId: TagId)` | 選択トグル。`resolveForTags` で実効定義を再計算し `propertyRows` を再構成（既存値は保持、新しい定義は空で追加、定義が消えた行は自由プロパティ化）。再検証 |
@@ -216,6 +222,12 @@ flowchart TD
 | `onAddFreeProperty(name: String, type: PropertyType)` | 自由プロパティ追加。空名・既存名と重複は無視して `error` を行ではなく `ShowMessage(NameRequired)` |
 | `onRemoveFreeProperty(name: PropertyName)` | 自由プロパティ行のみ削除可（定義済み行は値を空にするだけ） |
 | `onTagTableClick(tagId: TagId)` | `Navigate(TagTable(tagId))` |
+| `onAutoSyncTitleH1Change(enabled: Boolean)` | v2: トグル切替（本文は変えない）、`isDirty = true` |
+| `onCreateTagClick()` | v2: `Navigate(TagEdit(null))`。ViewModel はバックスタックに残るため入力中の値は保持され、タグは `observeTags()` で自動反映 |
+| `onOpenNotePicker(name)` | v2: NoteLink 行のピッカーを開く。絞り込み初期値は定義の `targetTagId`（存在するタグのみ。無ければ「すべて」） |
+| `onPickerQueryChange(q)` / `onPickerFilterChange(tagId?)` / `onPickerToggle(id)` | v2: 検索語（タイトル部分一致）／タグ絞り込み（null=すべて。子孫タグを含む）／選択トグル。自分自身は候補から除外 |
+| `onPickerConfirm()` / `onPickerDismiss()` | v2: 確定で `PropertyValue.NoteRefs.of(selectedIds)`（空なら `Empty`）を行に反映 / 破棄 |
+| `onRemoveNoteRef(name, id)` | v2: NoteLink 行から参照を 1 件外す |
 | `onSaveClick()` | 検証。ERROR あり→`ShowMessage(SaveBlockedByErrors)`、保存しない。ERROR なし→`noteRepository.save`（WARNING は `issues` に残す）→`ShowMessage(Saved)`→`NavigateBack` |
 | `onBackClick()` | `isDirty` なら `showDiscardDialog = true`、でなければ `NavigateBack` |
 | `onDiscardConfirm()` / `onDiscardDismiss()` | 破棄して `NavigateBack` / ダイアログを閉じる |
@@ -227,7 +239,7 @@ flowchart TD
 
 | UiState (`TagListUiState`) | 型 | 説明 |
 |---|---|---|
-| `items` | `List<TagListItem>` | `TagListItem(id: TagId, name: String, parentNames: List<String>, ownDefinitionCount: Int)` |
+| `items` | `List<TagListItem>` | `TagListItem(id, name, parentNames, ownDefinitionCount, depth: Int, isAdditionalParentOccurrence: Boolean)`。v2: `flattenTagTree(tags)` の結果（深さ優先。複数親のタグは親ごとに出現し 2 回目以降は `isAdditionalParentOccurrence = true`） |
 | `isLoading` | `Boolean` | |
 | `pendingDelete` | `Tag?` | 削除確認ダイアログ対象 |
 
@@ -280,12 +292,14 @@ flowchart TD
 | `tagName` | `String` | |
 | `table` | `TableView?` | 列・行・衝突。データ未到着は null |
 | `sort` | `TableSort?` | null=更新日時降順 |
+| `noteTitles` | `Map<NoteId, String>` | v2: 全ノートの ID→タイトル。NoteRefs セルをタイトルのカンマ区切りで表示（1 件も引けなければ件数） |
 
 | 操作関数 | 動作 |
 |---|---|
 | `onSortChange(key: TableSortKey)` | 同じ列なら昇順/降順トグル→（降順の次は解除=null）、別の列なら昇順で設定 |
 | `onRowClick(noteId: NoteId)` | `Navigate(NoteEdit(noteId))` |
 | `onEditTagClick()` | `Navigate(TagEdit(tagId))` |
+| `onAddNoteClick()` | v2: `Navigate(NoteEdit(null, tagId))`（このタグを初期選択した新規ノート） |
 | `onBackClick()` | `NavigateBack` |
 
 ## 6. DI（手動）: AppContainer
@@ -409,3 +423,13 @@ Compose の `Modifier.testTag` に使う定数。実機テストはこれで要�
 | `TAG_TABLE` | `tag_table` | 表全体 |
 | `TAG_TABLE_HEADER_PREFIX` | `tag_table_header_` | 列ヘッダ（`title` または `PropertyName.value`） |
 | `TAG_TABLE_ROW_PREFIX` | `tag_table_row_` | 行（末尾に `NoteId.value`） |
+
+v2 追加分（詳細は `TestTags.kt`）: `NOTE_EDIT_CREATE_TAG`, `NOTE_EDIT_AUTO_SYNC_H1`, `NOTE_EDIT_LINK_PICK_PREFIX`, `NOTE_EDIT_LINK_CHIP_PREFIX`, `NOTE_EDIT_LINK_REMOVE_PREFIX`, `NOTE_PICKER`, `NOTE_PICKER_SEARCH`, `NOTE_PICKER_FILTER_ALL`, `NOTE_PICKER_FILTER_TAG_PREFIX`, `NOTE_PICKER_ITEM_PREFIX`, `NOTE_PICKER_CONFIRM`, `NOTE_PICKER_CANCEL`, `NOTE_PICKER_EMPTY`, `TAG_LIST_ITEM_REPEAT_PREFIX`, `TAG_EDIT_DEFINITION_LINK_TARGET_PREFIX`, `TAG_TABLE_ADD_NOTE`。
+
+## 付録 v2: ノートリンク・H1同期・タグネスト
+
+- `domain/rules/TitleHeadingSync`（純粋関数）: `initialBody(title)` と `syncFirstH1(body, newTitle)`。`Note.autoSyncTitleH1` が true のとき UI（NoteEditViewModel）が呼ぶ。保存時の不変条件は変えない。
+- `domain/service/TagTree`: `flattenTagTree(tags): List<TagTreeNode>`。タグ一覧のネスト表示用。複数親は親ごとに出現（2回目以降 `isAdditionalParentOccurrence = true`）、循環・欠落親でも例外を投げない。
+- `PropertyType.NoteLink(targetTagId)` / `PropertyValue.NoteRefs(ids)`: 参照先ノートの存在チェックは検証で行わず、表示側で「（削除済み）」扱いにする。`targetTagId` は候補絞り込みの既定でしかなく強制しない。
+- 対象タグの削除: 外部キーを張らないため、`RoomTagRepository` が読み出し時に `sanitizeLinkTargets` で `targetTagId = null` に補正する。
+- DB は version 2。`NotebookMigrations.MIGRATION_1_2` を `NotebookDatabase.create/inMemory` に登録。

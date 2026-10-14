@@ -13,6 +13,8 @@ import com.amgm.notebook.domain.model.TagId
 import com.amgm.notebook.domain.repository.NoteRepository
 import com.amgm.notebook.domain.repository.TagRepository
 import com.amgm.notebook.domain.rules.EffectivePropertyResolver
+import com.amgm.notebook.domain.rules.TagHierarchy
+import com.amgm.notebook.domain.rules.TitleHeadingSync
 import com.amgm.notebook.domain.rules.Severity
 import com.amgm.notebook.domain.rules.ValidationIssue
 import com.amgm.notebook.domain.rules.NoteValidator
@@ -57,6 +59,22 @@ data class PropertyRowUi(
     val error: PropertyInputError?
 )
 
+/** ノートピッカーの候補 1 件。 */
+data class NotePickerCandidate(val id: NoteId, val title: String)
+
+/**
+ * ノートピッカー（NoteLink プロパティの値選択）の状態。
+ * [filterTagId] が null なら「すべて」。初期値は定義の `targetTagId`（強制ではなく変更可能）。
+ * [selectedIds] は確定前の作業中の選択（順序保持）。
+ */
+data class NotePickerUi(
+    val propertyName: PropertyName,
+    val query: String = "",
+    val filterTagId: TagId? = null,
+    val selectedIds: List<NoteId> = emptyList(),
+    val candidates: List<NotePickerCandidate> = emptyList()
+)
+
 data class NoteEditUiState(
     val isNew: Boolean = true,
     val isLoading: Boolean = false,
@@ -71,7 +89,13 @@ data class NoteEditUiState(
     val isDirty: Boolean = false,
     val isSaving: Boolean = false,
     val showDiscardDialog: Boolean = false,
-    val notFound: Boolean = false
+    val notFound: Boolean = false,
+    /** タイトル変更時に本文の最初の h1 も更新するか（ノートごと・規定ON）。 */
+    val autoSyncTitleH1: Boolean = true,
+    /** 存在する全ノートの ID→タイトル。NoteRefs のチップ表示用（無ければ「（削除済み）」）。 */
+    val noteTitles: Map<NoteId, String> = emptyMap(),
+    /** 開いているノートピッカー。null なら閉じている。 */
+    val picker: NotePickerUi? = null
 )
 
 class NoteEditViewModel(
@@ -79,11 +103,14 @@ class NoteEditViewModel(
     private val noteRepository: NoteRepository,
     private val tagRepository: TagRepository,
     private val idGenerator: IdGenerator,
-    private val clock: Clock
+    private val clock: Clock,
+    /** 新規作成時に初期選択するタグ（存在しなければ無視）。既存ノート編集では使わない。 */
+    private val initialTagId: TagId? = null
 ) : ViewModel() {
 
     private val validator = NoteValidator()
     private var allTags: Map<TagId, Tag> = emptyMap()
+    private var allNotes: List<Note> = emptyList()
     private var createdAt: Instant? = null
     private var currentId: NoteId? = noteId
 
@@ -97,6 +124,9 @@ class NoteEditViewModel(
 
     init {
         viewModelScope.launch { initialize() }
+        viewModelScope.launch {
+            noteRepository.observeNotes().collect { notes -> onNotesChanged(notes) }
+        }
     }
 
     private suspend fun initialize() {
@@ -129,13 +159,26 @@ class NoteEditViewModel(
                     isLoading = false,
                     title = note.title,
                     body = note.body,
+                    autoSyncTitleH1 = note.autoSyncTitleH1,
+                    noteTitles = _uiState.value.noteTitles,
                     availableTags = sortedTags(),
                     selectedTagIds = selected,
                     propertyRows = rebuildRows(selected, seeds)
                 )
             )
         } else {
-            _uiState.update { validated(it.copy(isLoading = false, availableTags = sortedTags())) }
+            val initial = initialTagId?.takeIf { it in allTags }
+            val selected: Set<TagId> = if (initial != null) setOf(initial) else emptySet()
+            _uiState.update {
+                validated(
+                    it.copy(
+                        isLoading = false,
+                        availableTags = sortedTags(),
+                        selectedTagIds = selected,
+                        propertyRows = rebuildRows(selected, it.propertyRows)
+                    )
+                )
+            }
         }
         tagRepository.observeTags().collect { tags -> onTagsChanged(tags) }
     }
@@ -157,11 +200,43 @@ class NoteEditViewModel(
         }
     }
 
+    private fun onNotesChanged(notes: List<Note>) {
+        allNotes = notes
+        _uiState.update { s ->
+            s.copy(
+                noteTitles = notes.associate { it.id to it.title },
+                picker = s.picker?.let { buildPicker(it) }
+            )
+        }
+    }
+
     // ---- 操作 -------------------------------------------------------------
 
     fun onTitleChange(title: String) {
-        _uiState.update { validated(it.copy(title = title, isDirty = true)) }
+        _uiState.update { s ->
+            var next = s.copy(title = title, isDirty = true)
+            if (s.autoSyncTitleH1) {
+                val newBody = if (s.body.isEmpty()) {
+                    TitleHeadingSync.initialBody(title)
+                } else {
+                    TitleHeadingSync.syncFirstH1(s.body, title)
+                }
+                if (newBody != s.body) {
+                    val preview = if (s.mode == EditorMode.Preview) MarkdownParser.parse(newBody) else s.previewDocument
+                    next = next.copy(body = newBody, previewDocument = preview)
+                }
+            }
+            validated(next)
+        }
     }
+
+    /** 「タイトル変更時に最初の h1 も更新する」の切替。切替自体では本文を変更しない。 */
+    fun onAutoSyncTitleH1Change(enabled: Boolean) {
+        _uiState.update { it.copy(autoSyncTitleH1 = enabled, isDirty = true) }
+    }
+
+    /** タグ作成画面（新規）へ遷移する。この ViewModel は戻りスタックに残るため入力中の値は保持される。 */
+    fun onCreateTagClick() = send(UiEvent.Navigate(Destination.TagEdit(null)))
 
     fun onBodyChange(body: String) {
         _uiState.update { s ->
@@ -237,6 +312,82 @@ class NoteEditViewModel(
         }
     }
 
+    // ---- NoteLink (ノート紐付け) ---------------------------------------------
+
+    /** 指定した NoteLink 行のピッカーを開く。絞り込みの初期値は定義の targetTagId（存在するタグのみ）。 */
+    fun onOpenNotePicker(name: PropertyName) {
+        _uiState.update { s ->
+            val row = s.propertyRows.firstOrNull { it.name == name } ?: return@update s
+            val type = row.type as? PropertyType.NoteLink ?: return@update s
+            val selected = (row.value as? PropertyValue.NoteRefs)?.ids.orEmpty()
+            val picker = NotePickerUi(
+                propertyName = name,
+                filterTagId = type.targetTagId?.takeIf { it in allTags },
+                selectedIds = selected
+            )
+            s.copy(picker = buildPicker(picker))
+        }
+    }
+
+    fun onPickerQueryChange(query: String) = updatePicker { it.copy(query = query) }
+
+    /** タグで絞り込む。null で「すべて」。 */
+    fun onPickerFilterChange(tagId: TagId?) = updatePicker { it.copy(filterTagId = tagId) }
+
+    fun onPickerToggle(id: NoteId) = updatePicker { p ->
+        p.copy(selectedIds = if (id in p.selectedIds) p.selectedIds - id else p.selectedIds + id)
+    }
+
+    fun onPickerConfirm() {
+        val picker = _uiState.value.picker ?: return
+        _uiState.update { it.copy(picker = null) }
+        setNoteRefs(picker.propertyName, picker.selectedIds)
+    }
+
+    fun onPickerDismiss() {
+        _uiState.update { it.copy(picker = null) }
+    }
+
+    /** NoteLink 行から参照を 1 件外す。 */
+    fun onRemoveNoteRef(name: PropertyName, id: NoteId) {
+        val row = _uiState.value.propertyRows.firstOrNull { it.name == name } ?: return
+        val current = (row.value as? PropertyValue.NoteRefs)?.ids ?: return
+        setNoteRefs(name, current - id)
+    }
+
+    private fun setNoteRefs(name: PropertyName, ids: List<NoteId>) {
+        _uiState.update { s ->
+            val target = s.propertyRows.firstOrNull { it.name == name }
+            if (target == null || target.type !is PropertyType.NoteLink) return@update s
+            val value: PropertyValue =
+                if (ids.isEmpty()) PropertyValue.Empty else PropertyValue.NoteRefs.of(ids)
+            val rows = s.propertyRows.map { row ->
+                if (row.name == name) row.copy(value = value, input = PropertyInputs.toInput(value)) else row
+            }
+            validated(s.copy(propertyRows = rows, isDirty = true))
+        }
+    }
+
+    private fun updatePicker(transform: (NotePickerUi) -> NotePickerUi) {
+        _uiState.update { s ->
+            val picker = s.picker ?: return@update s
+            s.copy(picker = buildPicker(transform(picker)))
+        }
+    }
+
+    /** 検索語・タグ絞り込み（子孫タグ含む）・自分自身の除外で候補を再計算する。 */
+    private fun buildPicker(picker: NotePickerUi): NotePickerUi {
+        val tagFilter: Set<TagId>? = picker.filterTagId?.let { TagHierarchy(allTags).descendantsOf(it) + it }
+        val q = picker.query.trim()
+        val candidates = allNotes
+            .filter { it.id != currentId }
+            .filter { note -> tagFilter == null || note.tagIds.any { it in tagFilter } }
+            .filter { note -> q.isEmpty() || note.title.contains(q, ignoreCase = true) }
+            .sortedWith(compareBy<Note>({ it.title.lowercase() }, { it.id.value }))
+            .map { NotePickerCandidate(it.id, it.title) }
+        return picker.copy(candidates = candidates)
+    }
+
     fun onTagTableClick(tagId: TagId) = send(UiEvent.Navigate(Destination.TagTable(tagId)))
 
     fun onSaveClick() {
@@ -259,7 +410,8 @@ class NoteEditViewModel(
             tagIds = state.selectedTagIds,
             properties = state.propertyRows.associate { it.name to it.value },
             createdAt = createdAt ?: now,
-            updatedAt = now
+            updatedAt = now,
+            autoSyncTitleH1 = state.autoSyncTitleH1
         )
         _uiState.update { it.copy(isSaving = true) }
         viewModelScope.launch {

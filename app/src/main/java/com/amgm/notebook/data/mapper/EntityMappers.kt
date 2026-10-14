@@ -33,7 +33,8 @@ fun NoteWithRelations.toDomain(): Note {
         tagIds = tagLinks.map { TagId(it.tagId) }.toSet(),
         properties = properties,
         createdAt = Instant.ofEpochMilli(note.createdAt),
-        updatedAt = Instant.ofEpochMilli(note.updatedAt)
+        updatedAt = Instant.ofEpochMilli(note.updatedAt),
+        autoSyncTitleH1 = note.autoSyncTitleH1
     )
 }
 
@@ -42,7 +43,8 @@ fun Note.toEntity(): NoteEntity = NoteEntity(
     title = title,
     body = body,
     createdAt = createdAt.toEpochMilli(),
-    updatedAt = updatedAt.toEpochMilli()
+    updatedAt = updatedAt.toEpochMilli(),
+    autoSyncTitleH1 = autoSyncTitleH1
 )
 
 fun Note.toTagLinkEntities(): List<NoteTagEntity> =
@@ -60,7 +62,7 @@ fun TagWithRelations.toDomain(): Tag {
         .map { entity ->
             PropertyDefinition(
                 name = PropertyName(entity.name),
-                type = PropertyValueCodec.parseType(entity.type) ?: PropertyType.Text,
+                type = PropertyValueCodec.parseType(entity.type, entity.linkTargetTagId) ?: PropertyType.Text,
                 required = entity.required
             )
         }
@@ -84,6 +86,32 @@ fun Tag.toDefinitionEntities(): List<TagPropertyDefinitionEntity> =
             name = definition.name.value,
             type = PropertyValueCodec.typeName(definition.type),
             required = definition.required,
-            position = index
+            position = index,
+            linkTargetTagId = PropertyValueCodec.linkTargetOf(definition.type)
         )
     }
+
+/**
+ * NoteLink 定義の対象タグが [tags] に存在しなければ null にする（外部キーを張らない代わりの読み出し時補正）。
+ */
+fun sanitizeLinkTargets(tags: List<Tag>): List<Tag> {
+    val existing = tags.map { it.id }.toSet()
+    return tags.map { tag ->
+        if (tag.ownPropertyDefinitions.none { isDangling(it.type, existing) }) {
+            tag
+        } else {
+            tag.copy(
+                ownPropertyDefinitions = tag.ownPropertyDefinitions.map { definition ->
+                    if (isDangling(definition.type, existing)) {
+                        definition.copy(type = PropertyType.NoteLink(null))
+                    } else {
+                        definition
+                    }
+                }
+            )
+        }
+    }
+}
+
+private fun isDangling(type: PropertyType, existing: Set<TagId>): Boolean =
+    type is PropertyType.NoteLink && type.targetTagId != null && type.targetTagId !in existing

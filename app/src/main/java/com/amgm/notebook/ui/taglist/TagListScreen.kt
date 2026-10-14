@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -88,36 +88,77 @@ fun TagListScreen(viewModel: TagListViewModel, snackbarHostState: SnackbarHostSt
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(state.items, key = { it.id.value }) { item ->
-                    Card(
-                        onClick = { viewModel.onTagClick(item.id) },
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                // 複数親のタグは同じ ID が複数行に出るため、キーは位置を含める
+                itemsIndexed(
+                    state.items,
+                    key = { index, item -> "${index}_${item.id.value}" }
+                ) { _, item ->
+                    val repeated = item.isAdditionalParentOccurrence
+                    // testTag は初出行のみ ID で一意にし、2回目以降の出現行は別プレフィックスにする
+                    val itemTag = (if (repeated) TestTags.TAG_LIST_ITEM_REPEAT_PREFIX else TestTags.TAG_LIST_ITEM_PREFIX) +
+                        item.id.value
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag(TestTags.TAG_LIST_ITEM_PREFIX + item.id.value)
+                            .padding(start = (16 * item.depth).dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        if (item.depth > 0) {
+                            // 親子を示す矢印（親の下にぶら下がっていることを表す）
+                            Text(
+                                text = "↳",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(end = 6.dp)
+                            )
+                        }
+                        Card(
+                            onClick = { viewModel.onTagClick(item.id) },
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (item.depth == 0) {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                } else {
+                                    MaterialTheme.colorScheme.secondaryContainer
+                                }
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag(itemTag)
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(item.name, style = MaterialTheme.typography.titleMedium)
-                                val parents = if (item.parentNames.isEmpty()) "親なし"
-                                else "親: " + item.parentNames.joinToString("、")
-                                Text(
-                                    text = "$parents  ·  定義 ${item.ownDefinitionCount} 件",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            Row(
+                                modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(item.name, style = MaterialTheme.typography.titleMedium)
+                                    val parents = if (item.parentNames.isEmpty()) "親なし"
+                                    else "親: " + item.parentNames.joinToString("、")
+                                    Text(
+                                        text = "$parents  ·  定義 ${item.ownDefinitionCount} 件",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    if (repeated) {
+                                        Text(
+                                            text = "（複数の親）",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.tertiary
+                                        )
+                                    }
+                                }
+                                IconButton(
+                                    onClick = { viewModel.onEditTagClick(item.id) },
+                                    modifier = if (repeated) Modifier else {
+                                        Modifier.testTag(TestTags.TAG_LIST_EDIT_PREFIX + item.id.value)
+                                    }
+                                ) { Icon(Icons.Default.Edit, contentDescription = "編集") }
+                                IconButton(
+                                    onClick = { viewModel.onDeleteTagClick(item.id) },
+                                    modifier = if (repeated) Modifier else {
+                                        Modifier.testTag(TestTags.TAG_LIST_DELETE_PREFIX + item.id.value)
+                                    }
+                                ) { Icon(Icons.Default.Delete, contentDescription = "削除") }
                             }
-                            IconButton(
-                                onClick = { viewModel.onEditTagClick(item.id) },
-                                modifier = Modifier.testTag(TestTags.TAG_LIST_EDIT_PREFIX + item.id.value)
-                            ) { Icon(Icons.Default.Edit, contentDescription = "編集") }
-                            IconButton(
-                                onClick = { viewModel.onDeleteTagClick(item.id) },
-                                modifier = Modifier.testTag(TestTags.TAG_LIST_DELETE_PREFIX + item.id.value)
-                            ) { Icon(Icons.Default.Delete, contentDescription = "削除") }
                         }
                     }
                 }
