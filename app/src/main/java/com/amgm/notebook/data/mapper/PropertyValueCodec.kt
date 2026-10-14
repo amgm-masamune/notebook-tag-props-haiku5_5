@@ -21,6 +21,9 @@ object PropertyValueCodec {
     /** 旧バージョンが書いた Empty。読み込み時は Null として扱う。 */
     const val TYPE_EMPTY = "EMPTY"
 
+    /** `value_type` / 定義 `type` 列: テキストのリスト。値は `value_text` にカンマ区切り。 */
+    const val TYPE_TEXT_LIST = "TEXT_LIST"
+
     /** 定義 `type` 列: ノートリンク。対象タグは別列 `link_target_tag_id`。 */
     const val TYPE_NOTE_LINK = "NOTE_LINK"
 
@@ -33,6 +36,7 @@ object PropertyValueCodec {
         PropertyType.Number -> TYPE_NUMBER
         PropertyType.Boolean -> TYPE_BOOLEAN
         PropertyType.Date -> TYPE_DATE
+        PropertyType.TextList -> TYPE_TEXT_LIST
         is PropertyType.NoteLink -> TYPE_NOTE_LINK
     }
 
@@ -47,6 +51,7 @@ object PropertyValueCodec {
         TYPE_NUMBER -> PropertyType.Number
         TYPE_BOOLEAN -> PropertyType.Boolean
         TYPE_DATE -> PropertyType.Date
+        TYPE_TEXT_LIST -> PropertyType.TextList
         else -> null
     }
 
@@ -56,6 +61,7 @@ object PropertyValueCodec {
         is PropertyValue.Number -> TYPE_NUMBER
         is PropertyValue.Bool -> TYPE_BOOLEAN
         is PropertyValue.Date -> TYPE_DATE
+        is PropertyValue.TextList -> TYPE_TEXT_LIST
         is PropertyValue.NoteRefs -> TYPE_NOTE_REFS
         is PropertyValue.Null -> TYPE_NULL
     }
@@ -66,6 +72,7 @@ object PropertyValueCodec {
         is PropertyValue.Number -> value.value.toString()
         is PropertyValue.Bool -> if (value.value) "true" else "false"
         is PropertyValue.Date -> value.value.toString()
+        is PropertyValue.TextList -> value.items.joinToString(",")
         is PropertyValue.NoteRefs -> {
             require(value.ids.none { it.value.contains(',') }) { "NoteId にカンマは使えません" }
             value.ids.joinToString(",") { it.value }
@@ -90,6 +97,7 @@ object PropertyValueCodec {
                 else -> PropertyValue.Null
             }
             TYPE_DATE -> PropertyValue.Date(LocalDate.parse(valueText))
+            TYPE_TEXT_LIST -> PropertyValue.TextList.of(valueText.split(','))
             TYPE_NOTE_REFS -> PropertyValue.ofNoteRefs(
                 valueText.split(',').filter { it.isNotBlank() }.map { NoteId(it) }
             )

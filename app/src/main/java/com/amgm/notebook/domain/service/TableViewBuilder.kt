@@ -106,6 +106,7 @@ class TableViewBuilder {
         is PropertyValue.Bool -> 2
         is PropertyValue.Date -> 3
         is PropertyValue.Null -> 4
-        is PropertyValue.NoteRefs -> 5
+        is PropertyValue.TextList -> 5
+        is PropertyValue.NoteRefs -> 6
     }
 }

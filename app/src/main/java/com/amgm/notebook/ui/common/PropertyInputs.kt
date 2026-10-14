@@ -21,6 +21,8 @@ object PropertyInputs {
         if (input.isBlank()) return PropertyValue.Null
         return when (type) {
             PropertyType.Text -> PropertyValue.Text(input)
+            // カンマ区切りで入力。前後の空白と空要素は除く
+            PropertyType.TextList -> PropertyValue.TextList.of(input.split(','))
             PropertyType.Number -> {
                 val d = input.trim().toDoubleOrNull()
                 if (d != null && d.isFinite()) PropertyValue.Number(d) else null
@@ -49,6 +51,7 @@ object PropertyInputs {
         is PropertyValue.Number -> formatNumber(value.value)
         is PropertyValue.Bool -> if (value.value) "true" else "false"
         is PropertyValue.Date -> value.value.toString()
+        is PropertyValue.TextList -> value.items.joinToString(", ")
         is PropertyValue.NoteRefs -> value.ids.joinToString(", ") { it.value }
         is PropertyValue.Null -> ""
     }
@@ -68,12 +71,13 @@ object PropertyInputs {
         is PropertyValue.Number -> PropertyType.Number
         is PropertyValue.Bool -> PropertyType.Boolean
         is PropertyValue.Date -> PropertyType.Date
+        is PropertyValue.TextList -> PropertyType.TextList
         is PropertyValue.NoteRefs -> PropertyType.NoteLink(null)
         is PropertyValue.Null -> PropertyType.Text
     }
 
     val allTypes: List<PropertyType> =
-        listOf(PropertyType.Text, PropertyType.Number, PropertyType.Boolean, PropertyType.Date)
+        listOf(PropertyType.Text, PropertyType.Number, PropertyType.Boolean, PropertyType.Date, PropertyType.TextList)
 
     /** プロパティ定義・自由プロパティの追加で選べる型（NoteLink を含む）。 */
     val selectableTypes: List<PropertyType> = allTypes + PropertyType.NoteLink(null)
@@ -84,6 +88,7 @@ object PropertyInputs {
         PropertyType.Number -> "Number"
         PropertyType.Boolean -> "Boolean"
         PropertyType.Date -> "Date"
+        PropertyType.TextList -> "TextList"
         is PropertyType.NoteLink -> "NoteLink"
     }
 
@@ -92,6 +97,7 @@ object PropertyInputs {
         PropertyType.Number -> "数値"
         PropertyType.Boolean -> "真偽"
         PropertyType.Date -> "日付"
+        PropertyType.TextList -> "リスト"
         is PropertyType.NoteLink -> "ノートリンク"
     }
 }

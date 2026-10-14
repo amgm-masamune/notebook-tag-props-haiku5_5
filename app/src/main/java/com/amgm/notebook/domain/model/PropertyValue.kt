@@ -14,6 +14,26 @@ sealed interface PropertyValue {
     data class Date(val value: java.time.LocalDate) : PropertyValue
 
     /**
+     * テキストのリスト（順序保持、重複可）。各要素は空でなく、カンマ・改行を含まない（永続化がカンマ区切りのため）。
+     * 空になり得る入力は [PropertyValue.ofTextList] を使う（空は [Null]）。
+     */
+    data class TextList(val items: List<String>) : PropertyValue {
+        init {
+            require(items.isNotEmpty()) { "TextList は空にできません（空は PropertyValue.Null）" }
+            require(items.all { it.isNotBlank() }) { "TextList の要素は空白のみにできません" }
+            require(items.none { it.contains(',') || it.contains('\n') }) { "TextList の要素にカンマ・改行は使えません" }
+        }
+
+        companion object {
+            /** 前後の空白を除き、空要素を捨てて生成する。結果が空なら [Null]。 */
+            fun of(items: Iterable<String>): PropertyValue {
+                val cleaned = items.map { it.trim() }.filter { it.isNotEmpty() }
+                return if (cleaned.isEmpty()) Null else TextList(cleaned)
+            }
+        }
+    }
+
+    /**
      * 他ノートへの参照（順序保持・重複なし）。ID にカンマは使えない（永続化がカンマ区切りのため）。
      * 重複を含む入力は [of] で除去できる。コンストラクタは重複を拒否する。
      * 空リストは作れない（「参照なし」は [Null] で表す）。空になり得る入力は [PropertyValue.ofNoteRefs] を使う。
@@ -47,6 +67,7 @@ sealed interface PropertyValue {
         is Number -> type == PropertyType.Number
         is Bool -> type == PropertyType.Boolean
         is Date -> type == PropertyType.Date
+        is TextList -> type == PropertyType.TextList
         is NoteRefs -> type is PropertyType.NoteLink
         is Null -> true
     }
