@@ -16,9 +16,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.amgm.notebook.ui.lighting.softShadow
 
 /**
- * タグのチップ。タグ色の淡い背景、選択状態は主色の塗り。
+ * タグのチップ。タグ色の淡い背景、選択状態は主色の塗り（選択中だけごく弱い影を落とす）。
  * [onClick] が null なら表示専用。testTag は [modifier] に付ける。
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,9 +33,11 @@ fun TagChip(
     showDot: Boolean = false
 ) {
     val scheme = MaterialTheme.colorScheme
+    // 選択中のチップだけ、ごく弱い影（elevation 2dp）。角は pill なので半径は高さの半分
+    val chipModifier = if (selected) modifier.softShadow(cornerRadius = SelectedChipRadius, elevation = 2.dp) else modifier
     if (onClick == null) {
         Surface(
-            modifier = modifier,
+            modifier = chipModifier,
             shape = CircleShape,
             color = if (selected) scheme.primary else tagColor.background,
             contentColor = if (selected) scheme.onPrimary else tagColor.content
@@ -77,7 +80,10 @@ fun TagChip(
                 borderColor = Color.Transparent,
                 selectedBorderColor = Color.Transparent
             ),
-            modifier = modifier
+            modifier = chipModifier
         )
     }
 }
+
+/** 選択チップの影を描く角丸の半径（pill の半分の高さ）。 */
+private val SelectedChipRadius = 16.dp

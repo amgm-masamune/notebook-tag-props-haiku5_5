@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -41,6 +42,7 @@ import com.amgm.notebook.ui.components.EmptyState
 import com.amgm.notebook.ui.components.PillSearchField
 import com.amgm.notebook.ui.components.TagChip
 import com.amgm.notebook.ui.components.neutralTagColor
+import com.amgm.notebook.ui.lighting.glassPanel
 import com.amgm.notebook.ui.theme.NotebookDimens
 
 /** ピッカーの操作コールバック。 */
@@ -65,11 +67,12 @@ fun NotePickerSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scheme = MaterialTheme.colorScheme
+    // シート自体は透明にし、中身の板をガラス（glassPanel）で描く
     ModalBottomSheet(
         onDismissRequest = actions.onDismiss,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        containerColor = scheme.surface,
+        containerColor = Color.Transparent,
         contentColor = scheme.onSurface,
         tonalElevation = 0.dp
     ) {
@@ -77,7 +80,8 @@ fun NotePickerSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(0.85f)
-                .padding(horizontal = NotebookDimens.ScreenPadding)
+                .glassPanel(cornerRadius = 28.dp)
+                .padding(start = NotebookDimens.ScreenPadding, end = NotebookDimens.ScreenPadding, top = 20.dp)
                 .testTag(TestTags.NOTE_PICKER),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {

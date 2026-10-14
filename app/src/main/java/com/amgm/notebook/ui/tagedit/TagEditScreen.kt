@@ -2,6 +2,7 @@ package com.amgm.notebook.ui.tagedit
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -39,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -55,6 +57,7 @@ import com.amgm.notebook.ui.components.SectionHeader
 import com.amgm.notebook.ui.components.TagChip
 import com.amgm.notebook.ui.components.neutralTagColor
 import com.amgm.notebook.ui.components.notebookFieldColors
+import com.amgm.notebook.ui.lighting.glassPanel
 import com.amgm.notebook.ui.theme.NotebookDimens
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -63,7 +66,7 @@ fun TagEditScreen(viewModel: TagEditViewModel, snackbarHostState: SnackbarHostSt
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(
@@ -72,22 +75,30 @@ fun TagEditScreen(viewModel: TagEditViewModel, snackbarHostState: SnackbarHostSt
                 .padding(innerPadding)
                 .imePadding()
         ) {
-            LargeTitleHeader(
-                title = if (state.isNew) "新規タグ" else "タグ編集",
-                navigationIcon = {
-                    IconButton(
-                        onClick = viewModel::onBackClick,
-                        modifier = Modifier.testTag(TestTags.TAG_EDIT_BACK)
-                    ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る") }
-                },
-                actions = {
-                    TextButton(
-                        onClick = viewModel::onSaveClick,
-                        enabled = !state.isSaving && !state.isLoading,
-                        modifier = Modifier.testTag(TestTags.TAG_EDIT_SAVE)
-                    ) { Text("保存", fontWeight = FontWeight.Bold) }
-                }
-            )
+            // 上部のバー（戻る・保存）は半透明のガラスの板に載せる
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .glassPanel(cornerRadius = 24.dp)
+            ) {
+                LargeTitleHeader(
+                    title = if (state.isNew) "新規タグ" else "タグ編集",
+                    navigationIcon = {
+                        IconButton(
+                            onClick = viewModel::onBackClick,
+                            modifier = Modifier.testTag(TestTags.TAG_EDIT_BACK)
+                        ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る") }
+                    },
+                    actions = {
+                        TextButton(
+                            onClick = viewModel::onSaveClick,
+                            enabled = !state.isSaving && !state.isLoading,
+                            modifier = Modifier.testTag(TestTags.TAG_EDIT_SAVE)
+                        ) { Text("保存", fontWeight = FontWeight.Bold) }
+                    }
+                )
+            }
             if (state.isLoading) {
                 Column(
                     modifier = Modifier
@@ -100,7 +111,12 @@ fun TagEditScreen(viewModel: TagEditViewModel, snackbarHostState: SnackbarHostSt
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = NotebookDimens.ScreenPadding, vertical = 8.dp),
+                        .padding(
+                            start = NotebookDimens.ScreenPadding,
+                            end = NotebookDimens.ScreenPadding,
+                            top = 8.dp,
+                            bottom = 120.dp
+                        ),
                     verticalArrangement = Arrangement.spacedBy(NotebookDimens.SectionSpacing)
                 ) {
                     val error = state.error
@@ -108,7 +124,7 @@ fun TagEditScreen(viewModel: TagEditViewModel, snackbarHostState: SnackbarHostSt
                     // 名前
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         SectionHeader("名前")
-                        NotebookCard(modifier = Modifier.fillMaxWidth()) {
+                        NotebookCard(modifier = Modifier.fillMaxWidth(), elevation = NotebookDimens.MainElevation) {
                             OutlinedTextField(
                                 value = state.name,
                                 onValueChange = viewModel::onNameChange,
@@ -137,7 +153,7 @@ fun TagEditScreen(viewModel: TagEditViewModel, snackbarHostState: SnackbarHostSt
                     // 親タグ
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         SectionHeader("親タグ")
-                        NotebookCard(modifier = Modifier.fillMaxWidth()) {
+                        NotebookCard(modifier = Modifier.fillMaxWidth(), elevation = NotebookDimens.MainElevation) {
                             if (state.parentCandidates.isEmpty()) {
                                 Text(
                                     "親にできるタグがありません",
@@ -159,7 +175,7 @@ fun TagEditScreen(viewModel: TagEditViewModel, snackbarHostState: SnackbarHostSt
                     if (inherited.definitions.isNotEmpty() || inherited.conflicts.isNotEmpty()) {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             SectionHeader("継承されるプロパティ（読み取り専用）")
-                            NotebookCard(modifier = Modifier.fillMaxWidth()) {
+                            NotebookCard(modifier = Modifier.fillMaxWidth(), elevation = NotebookDimens.MainElevation) {
                                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                     inherited.definitions.forEach { effective ->
                                         val d = effective.definition
@@ -193,7 +209,7 @@ fun TagEditScreen(viewModel: TagEditViewModel, snackbarHostState: SnackbarHostSt
                                 ErrorCard("プロパティ名「${error.name}」が重複しています")
                             else -> Unit
                         }
-                        NotebookCard(modifier = Modifier.fillMaxWidth()) {
+                        NotebookCard(modifier = Modifier.fillMaxWidth(), elevation = NotebookDimens.MainElevation) {
                             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                                 state.definitions.forEachIndexed { index, draft ->
                                     if (index > 0) {

@@ -12,4 +12,9 @@ object NotebookDimens {
     val CardPadding = 16.dp
     val CardRadius = 20.dp
     val InputRadius = 14.dp
+
+    /** 主要カード（プロパティ・本文・名前などのセクションカード）の影の強さ。 */
+    val MainElevation = 6.dp
+    /** 行・小カード（一覧の行、タグのカード）の影の強さ。 */
+    val RowElevation = 3.dp
 }

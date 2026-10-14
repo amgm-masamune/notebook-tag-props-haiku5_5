@@ -2,8 +2,6 @@ package com.amgm.notebook.ui.noteedit
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,6 +56,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
@@ -81,6 +80,9 @@ import com.amgm.notebook.ui.components.TagChip
 import com.amgm.notebook.ui.components.neutralTagColor
 import com.amgm.notebook.ui.components.notebookBorderlessFieldColors
 import com.amgm.notebook.ui.components.notebookFieldColors
+import com.amgm.notebook.ui.lighting.glassPanel
+import com.amgm.notebook.ui.lighting.litSurface
+import com.amgm.notebook.ui.lighting.softShadow
 import com.amgm.notebook.ui.markdown.MarkdownView
 import com.amgm.notebook.ui.theme.NotebookDimens
 
@@ -146,7 +148,7 @@ private fun NoteEditContent(
     val tagNames = remember(state.availableTags) { state.availableTags.associate { it.id to it.name } }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(
@@ -155,37 +157,44 @@ private fun NoteEditContent(
                 .padding(innerPadding)
                 .imePadding()
         ) {
-            // 戻る(アイコン)と保存(テキスト)だけの軽いバー
-            Row(
+            // 戻る(アイコン)と保存(テキスト)だけの、ガラスの板に載ったバー
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .glassPanel(cornerRadius = 24.dp)
             ) {
-                IconButton(
-                    onClick = onBackClick,
-                    modifier = Modifier.testTag(TestTags.NOTE_EDIT_BACK)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る")
-                }
-                Spacer(Modifier.weight(1f))
-                if (!state.isNew) {
                     IconButton(
-                        onClick = onDeleteClick,
-                        modifier = Modifier.testTag(TestTags.NOTE_EDIT_DELETE)
+                        onClick = onBackClick,
+                        modifier = Modifier.testTag(TestTags.NOTE_EDIT_BACK)
                     ) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = "削除",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る")
                     }
+                    Spacer(Modifier.weight(1f))
+                    if (!state.isNew) {
+                        IconButton(
+                            onClick = onDeleteClick,
+                            modifier = Modifier.testTag(TestTags.NOTE_EDIT_DELETE)
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "削除",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    TextButton(
+                        onClick = onSaveClick,
+                        enabled = !state.isSaving && !state.isLoading,
+                        modifier = Modifier.testTag(TestTags.NOTE_EDIT_SAVE)
+                    ) { Text("保存", fontWeight = FontWeight.Bold) }
                 }
-                TextButton(
-                    onClick = onSaveClick,
-                    enabled = !state.isSaving && !state.isLoading,
-                    modifier = Modifier.testTag(TestTags.NOTE_EDIT_SAVE)
-                ) { Text("保存", fontWeight = FontWeight.Bold) }
             }
             if (state.isLoading) {
                 Column(
@@ -199,7 +208,12 @@ private fun NoteEditContent(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = NotebookDimens.ScreenPadding, vertical = 8.dp),
+                        .padding(
+                            start = NotebookDimens.ScreenPadding,
+                            end = NotebookDimens.ScreenPadding,
+                            top = 8.dp,
+                            bottom = 120.dp
+                        ),
                     verticalArrangement = Arrangement.spacedBy(NotebookDimens.SectionSpacing)
                 ) {
                     // タイトル(大きな見出しスタイルの入力) + H1 同期
@@ -232,8 +246,11 @@ private fun NoteEditContent(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surface, NotebookInputShape)
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, NotebookInputShape)
+                                .softShadow(cornerRadius = NotebookDimens.InputRadius, elevation = NotebookDimens.RowElevation)
+                                .litSurface(
+                                    cornerRadius = NotebookDimens.InputRadius,
+                                    baseColor = MaterialTheme.colorScheme.surface
+                                )
                                 .padding(start = 16.dp, end = 12.dp, top = 6.dp, bottom = 6.dp)
                         ) {
                             Text(
@@ -301,7 +318,7 @@ private fun NoteEditContent(
                     // プロパティ
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         SectionHeader("プロパティ")
-                        NotebookCard(modifier = Modifier.fillMaxWidth()) {
+                        NotebookCard(modifier = Modifier.fillMaxWidth(), elevation = NotebookDimens.MainElevation) {
                             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                                 state.issues.filterIsInstance<ValidationIssue.Conflict>().forEach { issue ->
                                     ConflictNotice(issue, tagNames)
@@ -341,7 +358,7 @@ private fun NoteEditContent(
                     // 本文
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         SectionHeader("本文")
-                        NotebookCard(modifier = Modifier.fillMaxWidth()) {
+                        NotebookCard(modifier = Modifier.fillMaxWidth(), elevation = NotebookDimens.MainElevation) {
                             val scheme = MaterialTheme.colorScheme
                             val segmentColors = SegmentedButtonDefaults.colors(
                                 activeContainerColor = scheme.primaryContainer,

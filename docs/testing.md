@@ -87,6 +87,16 @@ ViewModel 単体（状態遷移）:
 
 方針: UI 要素は `TestTags`（architecture.md 9 章）で特定。アニメーションに依存しない。各テストは独立した in-memory DB を使う。実機テストは数を絞り（1テスト 30 秒未満目安）、CI のエミュレータ起動時間を考慮して最低限にとどめる。
 
+### 3.4 光と影（シェーダー）
+
+| 種類 | ファイル | 内容 |
+|---|---|---|
+| JVM 静的検査 | `T/ui/lighting/ShaderSpecLintTest.kt`（実パス: `app/src/test/.../ui/lighting/`） | 全 `ShaderSpec` について、`half4 main(float2` の存在、uniform の宣言と仕様の双方向の一致、宣言以外での使用、`floatCount` と宣言型の一致、`texture` / `uniform shader` の禁止、波括弧の対応、定数境界の for ループ、名前の重複なし |
+| 実機（API 33 以上） | `A/ui/lighting/ShaderCompileTest.kt` | 全シェーダーを `RuntimeShader` でコンパイルし、宣言された全 uniform に値を設定できること。API 33 未満では Assume でスキップ |
+| 実機（撮影） | `A/ui/screenshot/ScreenshotCaptureTest.kt` | 主要画面（ノート一覧・ノート・プレビュー・タグ一覧・表・タグ別表）をライト/ダークで撮る。アサーションは画面の目印 testTag の表示だけ。撮影結果は CI で `ci-screenshots` ブランチへ載る |
+
+CI の `android-test` job は API 30 と API 34 のマトリクスで実機テストを走らせる。API 34 で AGSL の描画を、API 30 で API 33 未満のフォールバック表示を確認する。撮影の保存先とコメントへの投稿は [lighting.md](lighting.md) §10 を参照。
+
 ## 4. GitHub Actions
 
 ファイル: `.github/workflows/ci.yml`。トリガー: `push`（全ブランチ）, `pull_request`, `workflow_dispatch`。`concurrency: group: ci-${{ github.ref }}, cancel-in-progress: true`。
@@ -126,12 +136,13 @@ flowchart LR
    sudo udevadm trigger --name-match=kvm
    ```
 3. `reactivecircus/android-emulator-runner@v2`:
-   - `api-level: 34`, `arch: x86_64`, `target: google_apis`, `profile: pixel_6`
+   - `api-level`: 30 と 34 のマトリクス（`arch: x86_64`, `target: google_apis`, `profile: pixel_6`。API 30 はフォールバック表示の確認用）
    - `disable-animations: true`, `force-avd-creation: false`, `emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none`
    - `script: gradle :app:connectedDebugAndroidTest :app:assembleDebugAndroidTest --stacktrace`
 4. `actions/upload-artifact@v4`（`if: always()`）
    - name: `android-test-reports` / path: `app/build/reports/androidTests/connected`（HTML）と `app/build/outputs/androidTest-results/connected`（JUnit XML）
    - name: `android-test-apk` / path: `app/build/outputs/apk/androidTest/debug/*.apk`
+5. スクリーンショットの回収（`if: always()`、`continue-on-error`）: `scripts/publish_screenshots.sh` が `connected_android_test_additional_output` の PNG を `ci-screenshots` ブランチの `{sha7}/api{level}/` へ push し、コミットのコメントに画像リンクを投稿する。
 
 ### 4.3 成果物一覧
 

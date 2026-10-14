@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,7 +14,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -23,8 +21,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -59,6 +55,10 @@ import com.amgm.notebook.ui.TestTags
 import com.amgm.notebook.ui.common.PropertyInputs
 import com.amgm.notebook.ui.components.EmptyState
 import com.amgm.notebook.ui.components.LargeTitleHeader
+import com.amgm.notebook.ui.lighting.GlowFab
+import com.amgm.notebook.ui.lighting.glassPanel
+import com.amgm.notebook.ui.lighting.litSurface
+import com.amgm.notebook.ui.lighting.softShadow
 import com.amgm.notebook.ui.theme.NotebookDimens
 import com.amgm.notebook.ui.theme.extraColors
 
@@ -66,25 +66,19 @@ private val TitleColumnWidth: Dp = 150.dp
 private val CellWidth: Dp = 130.dp
 private val RowHeight: Dp = 52.dp
 private val HeaderHeight: Dp = 48.dp
+private val HeaderRadius: Dp = 24.dp
 
 @Composable
 fun TagTableScreen(viewModel: TagTableViewModel, snackbarHostState: SnackbarHostState) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = viewModel::onAddNoteClick,
+            GlowFab(
+                text = "ノートを追加",
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("ノートを追加") },
-                shape = CircleShape,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                elevation = FloatingActionButtonDefaults.elevation(
-                    defaultElevation = 2.dp,
-                    pressedElevation = 1.dp
-                ),
+                onClick = viewModel::onAddNoteClick,
                 modifier = Modifier.testTag(TestTags.TAG_TABLE_ADD_NOTE)
             )
         },
@@ -96,22 +90,30 @@ fun TagTableScreen(viewModel: TagTableViewModel, snackbarHostState: SnackbarHost
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            LargeTitleHeader(
-                title = if (state.tagName.isEmpty()) "表ビュー" else "${state.tagName} の表",
-                subtitle = table?.let { "${it.rows.size} 件のノート" },
-                navigationIcon = {
-                    IconButton(
-                        onClick = viewModel::onBackClick,
-                        modifier = Modifier.testTag(TestTags.TAG_TABLE_BACK)
-                    ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る") }
-                },
-                actions = {
-                    IconButton(
-                        onClick = viewModel::onEditTagClick,
-                        modifier = Modifier.testTag(TestTags.TAG_TABLE_EDIT)
-                    ) { Icon(Icons.Default.Edit, contentDescription = "タグを編集") }
-                }
-            )
+            // 上部のバーは半透明のガラスの板に載せる
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                    .glassPanel(cornerRadius = HeaderRadius)
+            ) {
+                LargeTitleHeader(
+                    title = if (state.tagName.isEmpty()) "表ビュー" else "${state.tagName} の表",
+                    subtitle = table?.let { "${it.rows.size} 件のノート" },
+                    navigationIcon = {
+                        IconButton(
+                            onClick = viewModel::onBackClick,
+                            modifier = Modifier.testTag(TestTags.TAG_TABLE_BACK)
+                        ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る") }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = viewModel::onEditTagClick,
+                            modifier = Modifier.testTag(TestTags.TAG_TABLE_EDIT)
+                        ) { Icon(Icons.Default.Edit, contentDescription = "タグを編集") }
+                    }
+                )
+            }
             when {
                 state.isLoading || (table == null && state.tagFound) -> Column(
                     modifier = Modifier
@@ -178,94 +180,105 @@ private fun TableContent(
     val baseColor = scheme.surface
     val altColor = MaterialTheme.extraColors.rowAlt
 
-    Column(
+    // 表全体を 1 枚の光るカードに載せる。カードの高さは内容に合わせ、下端の FAB 分の余白を空ける
+    Box(
         modifier = Modifier
-            .fillMaxSize()
-            .clipToBounds()
-            .horizontalScroll(horizontal)
-            .testTag(TestTags.TAG_TABLE)
+            .fillMaxWidth()
+            .padding(start = NotebookDimens.ScreenPadding, end = NotebookDimens.ScreenPadding, top = 8.dp, bottom = 120.dp)
+            .softShadow(cornerRadius = NotebookDimens.CardRadius, elevation = NotebookDimens.MainElevation)
+            .litSurface(cornerRadius = NotebookDimens.CardRadius, baseColor = baseColor)
     ) {
-        // ヘッダ行（縦スクロールの外に置き、常に見える）
-        Row(modifier = Modifier.height(HeaderHeight)) {
-            HeaderCell(
-                label = "タイトル",
-                key = TableSortKey.Title,
-                sort = sort,
-                tag = TestTags.TAG_TABLE_HEADER_PREFIX + "title",
-                width = TitleColumnWidth,
-                background = headerColor,
-                pinned = horizontal,
-                numeric = false,
-                onClick = onSortChange
-            )
-            table.columns.forEach { column ->
-                HeaderCell(
-                    label = column.name.value + if (column.required) " *" else "",
-                    key = TableSortKey.Property(column.name),
-                    sort = sort,
-                    tag = TestTags.TAG_TABLE_HEADER_PREFIX + column.name.value,
-                    width = CellWidth,
-                    background = headerColor,
-                    pinned = null,
-                    numeric = column.type == PropertyType.Number,
-                    onClick = onSortChange
-                )
-            }
-        }
-        HorizontalDivider(color = scheme.outlineVariant)
         Column(
             modifier = Modifier
-                .weight(1f, fill = false)
-                .verticalScroll(vertical)
+                .fillMaxWidth()
+                .clipToBounds()
+                .horizontalScroll(horizontal)
+                .testTag(TestTags.TAG_TABLE)
         ) {
-            table.rows.forEachIndexed { index, row ->
-                val rowColor = if (index % 2 == 0) baseColor else altColor
-                Row(
-                    modifier = Modifier
-                        .height(RowHeight)
-                        .background(rowColor)
-                        .clickable { onRowClick(row.noteId) }
-                        .testTag(TestTags.TAG_TABLE_ROW_PREFIX + row.noteId.value),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
+            // ヘッダ行（縦スクロールの外に置き、常に見える）
+            Row(modifier = Modifier.height(HeaderHeight)) {
+                HeaderCell(
+                    label = "タイトル",
+                    key = TableSortKey.Title,
+                    sort = sort,
+                    tag = TestTags.TAG_TABLE_HEADER_PREFIX + "title",
+                    width = TitleColumnWidth,
+                    background = headerColor,
+                    pinned = horizontal,
+                    numeric = false,
+                    onClick = onSortChange
+                )
+                table.columns.forEach { column ->
+                    HeaderCell(
+                        label = column.name.value + if (column.required) " *" else "",
+                        key = TableSortKey.Property(column.name),
+                        sort = sort,
+                        tag = TestTags.TAG_TABLE_HEADER_PREFIX + column.name.value,
+                        width = CellWidth,
+                        background = headerColor,
+                        pinned = null,
+                        numeric = column.type == PropertyType.Number,
+                        onClick = onSortChange
+                    )
+                }
+            }
+            HorizontalDivider(color = scheme.outlineVariant)
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(vertical)
+            ) {
+                table.rows.forEachIndexed { index, row ->
+                    val even = index % 2 == 0
+                    // 固定列もスクロールする列も同じ不透明の地を使い、横スクロール時に色の継ぎ目を出さない
+                    val rowColor = if (even) baseColor else altColor
+                    Row(
                         modifier = Modifier
-                            .width(TitleColumnWidth)
                             .height(RowHeight)
-                            .offset { IntOffset(horizontal.value, 0) }
-                            .zIndex(1f)
                             .background(rowColor)
-                            .padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.CenterStart
+                            .clickable { onRowClick(row.noteId) }
+                            .testTag(TestTags.TAG_TABLE_ROW_PREFIX + row.noteId.value),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = row.title.ifBlank { "(無題)" },
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    row.cells.forEachIndexed { columnIndex, cell ->
-                        val numeric = cell is PropertyValue.Number ||
-                            table.columns.getOrNull(columnIndex)?.type == PropertyType.Number
                         Box(
                             modifier = Modifier
-                                .width(CellWidth)
+                                .width(TitleColumnWidth)
+                                .height(RowHeight)
+                                .offset { IntOffset(horizontal.value, 0) }
+                                .zIndex(1f)
+                                .background(rowColor)
                                 .padding(horizontal = 16.dp),
-                            contentAlignment = if (numeric) Alignment.CenterEnd else Alignment.CenterStart
+                            contentAlignment = Alignment.CenterStart
                         ) {
                             Text(
-                                text = cellText(cell, noteTitles),
+                                text = row.title.ifBlank { "(無題)" },
                                 style = MaterialTheme.typography.bodyMedium,
-                                textAlign = if (numeric) TextAlign.End else TextAlign.Start,
+                                fontWeight = FontWeight.SemiBold,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
+                        row.cells.forEachIndexed { columnIndex, cell ->
+                            val numeric = cell is PropertyValue.Number ||
+                                table.columns.getOrNull(columnIndex)?.type == PropertyType.Number
+                            Box(
+                                modifier = Modifier
+                                    .width(CellWidth)
+                                    .padding(horizontal = 16.dp),
+                                contentAlignment = if (numeric) Alignment.CenterEnd else Alignment.CenterStart
+                            ) {
+                                Text(
+                                    text = cellText(cell, noteTitles),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    textAlign = if (numeric) TextAlign.End else TextAlign.Start,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                     }
+                    HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.5f))
                 }
-                HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.5f))
             }
         }
     }

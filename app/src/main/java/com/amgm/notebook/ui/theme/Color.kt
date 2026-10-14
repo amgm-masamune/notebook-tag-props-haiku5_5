@@ -9,7 +9,7 @@ import androidx.compose.ui.graphics.Color
 
 // ---- ライト ----
 internal val PaperLight = Color(0xFFF6F5F1)          // 背景（温かい紙色）
-internal val SurfaceLight = Color(0xFFFFFFFF)        // カード・入力欄
+internal val SurfaceLight = Color(0xFFFFFDF8)        // カード・入力欄（暖白）
 internal val SurfaceDimLight = Color(0xFFEEEDE8)     // 一段沈んだ面（ヘッダ行・トラック）
 internal val InkBlueLight = Color(0xFF2B3A8F)        // 主色
 internal val OnInkBlueLight = Color(0xFFFFFFFF)
@@ -32,7 +32,7 @@ internal val RowAltLight = Color(0xFFF9F8F5)         // 表の交互行
 
 // ---- ダーク ----
 internal val PaperDark = Color(0xFF121317)
-internal val SurfaceDark = Color(0xFF1C1E25)
+internal val SurfaceDark = Color(0xFF23252E)        // カード（インク寄りのスレート）
 internal val SurfaceDimDark = Color(0xFF262932)
 internal val InkBlueDark = Color(0xFFA9B6FF)
 internal val OnInkBlueDark = Color(0xFF151C5C)
@@ -52,3 +52,12 @@ internal val OnAmberSoftDark = Color(0xFFF6DDB0)
 internal val OutlineDark = Color(0xFF5A5D6A)
 internal val HairlineDark = Color(0xFF2E313B)
 internal val RowAltDark = Color(0xFF1F2128)
+
+// ---- 光（ui/lighting の光源モデル用）----
+internal val LightKeyLight = Color(0xFFFFF8EA)       // 窓辺の朝の光（主光源。紙色より明るい暖白）
+internal val ShadowInkLight = Color(0xFF3A3226)     // 紙の上の影（暖かい茶インク）
+internal val GlassTintLight = Color(0xFFFFFFFF)     // すりガラスの板（ライト）
+internal val GlassTintDark = Color(0xFF1C1E25)      // すりガラスの板（ダーク）
+internal val LightKeyDark = Color(0xFFFFC98A)        // 卓上灯（暖色）
+internal val LightHighlightDark = Color(0xFFFFF1DC)  // 卓上灯の反射（温白）
+internal val LightRimDark = Color(0xFFFFF1DC)        // カードの縁に当たる暖白

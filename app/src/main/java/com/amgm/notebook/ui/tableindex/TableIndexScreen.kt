@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -49,7 +50,7 @@ fun TableIndexScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(
@@ -84,7 +85,7 @@ fun TableIndexScreen(
                         start = NotebookDimens.ScreenPadding,
                         end = NotebookDimens.ScreenPadding,
                         top = 12.dp,
-                        bottom = 24.dp
+                        bottom = 160.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
