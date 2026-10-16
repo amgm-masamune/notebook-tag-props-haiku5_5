@@ -5,22 +5,47 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+// CI（GitHub Actions）では GITHUB_RUN_NUMBER が入り、ビルドごとに増える versionCode になる。
+// ローカル実行（環境変数なし）は従来どおり 1 / 1.0。
+val ciRunNumber: Int? = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
+
+// CI 用の固定署名鍵。未設定なら既定のデバッグ鍵（実行環境ごとに変わる）で署名される。
+// 鍵が毎回変わると、前回の CI 成果物の上に上書きインストールできなくなるため、
+// ANDROID_KEYSTORE_PATH などを GitHub Secrets から渡して同じ鍵で署名する。
+val ciKeystorePath: String? = System.getenv("ANDROID_KEYSTORE_PATH")?.takeIf { it.isNotBlank() }
+
 android {
     namespace = "com.amgm.notebook"
     compileSdk = 35
+
+    signingConfigs {
+        if (ciKeystorePath != null) {
+            create("ci") {
+                storeFile = file(ciKeystorePath)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "com.amgm.notebook"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = ciRunNumber ?: 1
+        versionName = if (ciRunNumber != null) "1.0.$ciRunNumber" else "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // スクリーンショットを AndroidX Test Storage 経由で回収する（connected_android_test_additional_output）
         testInstrumentationRunnerArguments["useTestStorageService"] = "true"
     }
 
     buildTypes {
+        debug {
+            if (ciKeystorePath != null) {
+                signingConfig = signingConfigs.getByName("ci")
+            }
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(

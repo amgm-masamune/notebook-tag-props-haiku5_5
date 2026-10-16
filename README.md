@@ -42,6 +42,22 @@ push / pull_request / workflow_dispatch で実行。成果物は Actions の実�
 | `android-test-reports` | 実機テスト（エミュレータ）の HTML レポートと XML | android-test |
 | `android-test-apk` | 計装テスト APK | android-test |
 
+## CI 成果物の上書きインストール（署名鍵・バージョン）
+
+- デバッグ APK は、CI で固定の署名鍵（GitHub Secrets）で署名します。毎回変わる既定のデバッグ鍵で署名すると、前回の成果物の上に上書きできません。
+- `versionCode` は CI の実行番号（`GITHUB_RUN_NUMBER`）になるため、新しい成果物ほど大きい番号になります。
+- 必要な Secrets（リポジトリの Settings → Secrets and variables → Actions）:
+  - `ANDROID_KEYSTORE_BASE64`: keystore ファイルを base64 にしたもの
+  - `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`
+- 鍵の作成例（一度だけ。鍵ファイルは安全な場所に保管し、リポジトリにはコミットしない）:
+
+```
+keytool -genkeypair -v -keystore notebook-ci.keystore -alias notebook -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=notebook"
+base64 -w0 notebook-ci.keystore > notebook-ci.keystore.b64
+```
+
+- 鍵を変えた後の最初の更新だけは、端末の既存アプリをアンインストールしてから入れ直す必要があります（署名が変わるため）。アンインストールするとアプリ内のデータ（ノート）も消えます。
+
 ## ドキュメント
 
 設計書は [docs/](docs/README.md) を参照（requirements / data-model / architecture / testing / lighting）。
